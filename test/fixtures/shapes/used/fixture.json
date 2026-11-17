@@ -1,0 +1,7 @@
+{
+  "id": "chatcmpl-9",
+  "object": "chat.completion",
+  "model": "gpt-4o-2024-08-06",
+  "choices": [],
+  "usage": { "prompt_tokens": 1, "completion_tokens": 2 }
+}

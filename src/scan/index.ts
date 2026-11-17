@@ -11,6 +11,8 @@ import { analyzeJava } from "./java.js";
 import { analyzeJs, collectExports, type ExportedClients } from "./js.js";
 import { readSdkDependencies } from "./manifest.js";
 import { parse, type Tree } from "./parser.js";
+import { urlVersionUsages } from "./urls.js";
+import { provenUse, repoEvidence } from "./evidence.js";
 import { analyzePy } from "./py.js";
 
 export interface AnalyzeInput {
@@ -61,8 +63,12 @@ function prefilter(): RegExp {
 /** Tests, examples and fixtures still matter, but rank below production code. */
 export function isTestPath(rel: string): boolean {
   return (
-    /(^|\/)(test|tests|__tests__|spec|specs|e2e|fixtures?|__mocks__|examples?|samples?|bench|benchmarks?|testdata)\//i.test(rel) ||
-    /\.(test|spec)\.[cm]?[jt]sx?$/.test(rel) ||
+    /(^|\/)(test|tests|__tests__|spec|specs|e2e|fixtures?|__fixtures__|__mocks__|mocks?|fakes?|stubs?|cassettes|testing|test[-_]?utils?|testdata|examples?|samples?|bench|benchmarks?)\//i.test(rel) ||
+    /\.(test|spec|mock|stories)\.[cm]?[jt]sx?$/.test(rel) ||
+    /_test\.go$|(Test|Tests|IT|Spec)\.(java|kt|cs)$|_spec\.rb$|(^|\/)test_[^/]*\.rb$|Test\.php$/.test(rel) ||
+    // sample, seed, demo, mock and recorded-session data files outside test folders: sample_dataset.ts, seed-demo.ts
+    /(^|\/)([^/]*[-_.])?(tests?|specs?|mocks?|fakes?|stubs?|dummy|fixtures?|samples?|seeds?|demos?|examples?|typecheck(ing)?)([-_.][^/]*)?\.[a-z]+$/i.test(rel) ||
+    /(^|\/)typecheck(ing)?\//i.test(rel) ||
     /(^|\/)(test_[^/]*|[^/]*_test)\.py$/.test(rel) ||
     /(^|\/)conftest\.py$/.test(rel)
   );
@@ -85,6 +91,9 @@ function inferGoogleHost(usages: Usage[], sdks: SdkDependency[]): void {
 }
 
 /** Scan a repo directory and return its API map. */
+/** Lines that can show a provider is used (see evidence.ts): imports, API key names, process calls */
+const EVIDENCE_LINE = /^\s*(import|from|using|require|const|let|var|use)\b|require\(|_API_KEY|_AUTH_TOKEN|_PROJECT\b|spawn|exec|Popen|subprocess|ProcessBuilder|Command\(|system\(/;
+
 /** More model values than this in one JSON file means it holds data, not settings */
 const DATA_FILE_MODELS = 25;
 
@@ -102,7 +111,11 @@ async function scanWithConfig(root: string, config: RepoConfig, opts: { onWarn?:
   const files = allFiles.filter((f) => !ignored(config, f.rel));
   const sdks = await readSdkDependencies(root, manifests);
 
-  const parsed: { rel: string; abs: string; lang: Lang; source: string; tree: Tree }[] = [];
+  // Only sources are kept for the whole scan. Each file's syntax tree lives just while that file is being looked at:
+  // tree-sitter's memory is capped (about 2 GB), and holding every tree of a big repo at once overflows it.
+  const sources: { rel: string; abs: string; lang: Lang; source: string }[] = [];
+  // From every file, only the lines that can show the repo uses a provider: imports, API key names, process calls
+  const evidenceLines: string[] = [];
   for (const f of files) {
     let source: string;
     try {
@@ -110,34 +123,44 @@ async function scanWithConfig(root: string, config: RepoConfig, opts: { onWarn?:
     } catch {
       continue;
     }
+    const lines = source.split("\n").filter((l) => l.length < 400 && EVIDENCE_LINE.test(l));
+    if (lines.length) evidenceLines.push(lines.join("\n"));
     // Cheap prefilter: skip files that can't possibly mention a provider
-    if (!prefilter().test(source)) continue;
+    if (prefilter().test(source)) sources.push({ rel: f.rel, abs: f.path, lang: f.lang, source });
+  }
+  /** Parse one file, run `use` on its tree, and always free the tree. A file that can't be parsed is skipped. */
+  async function withTree(p: (typeof sources)[number], use: (tree: Tree) => void): Promise<void> {
+    let tree: Tree;
     try {
-      parsed.push({ rel: f.rel, abs: f.path, lang: f.lang, source, tree: await parse(f.lang, f.rel, source) });
+      tree = await parse(p.lang, p.rel, p.source);
     } catch (e) {
-      warn(`could not parse ${f.rel}: ${(e as Error).message}`);
+      warn(`could not parse ${p.rel}: ${(e as Error).message}`);
+      return;
     }
-  }
-
-  // JS/TS pass 1: which files export a constructed client
-  const exported: ExportedClients = new Map();
-  for (const p of parsed) {
-    if (p.lang === "ts" || p.lang === "js") collectExports(p.rel, p.abs, p.lang, p.source, p.tree, exported);
-  }
-
-  const usages: Usage[] = [];
-  for (const p of parsed) {
     try {
-      const analyze = ANALYZERS[p.lang];
-      if (analyze) {
-        const found = withLines(analyze({ ...p, exported }), p.source);
-        usages.push(...found, ...resourceUsages(p.rel, p.lang, p.source, found));
-      }
+      use(tree);
     } catch (e) {
       warn(`could not analyze ${p.rel}: ${(e as Error).message}`);
     } finally {
-      p.tree.delete();
+      tree.delete();
     }
+  }
+
+  // JS/TS pass 1: which files export a constructed client (needed before any file is analyzed)
+  const exported: ExportedClients = new Map();
+  for (const p of sources) {
+    const lang = p.lang;
+    if (lang === "ts" || lang === "js") await withTree(p, (tree) => collectExports(p.rel, p.abs, lang, p.source, tree, exported));
+  }
+
+  const usages: Usage[] = [];
+  for (const p of sources) {
+    const analyze = ANALYZERS[p.lang];
+    if (!analyze) continue;
+    await withTree(p, (tree) => {
+      const found = withLines(analyze({ ...p, tree, exported }), p.source);
+      usages.push(...found, ...resourceUsages(p.rel, p.lang, p.source, found), ...urlVersionUsages(tree, p.rel, p.lang, p.source, found));
+    });
   }
 
   const configUsages = (await scanConfigAndNotebooks(root)).filter((u) => !ignored(config, u.file));
@@ -167,12 +190,21 @@ async function scanWithConfig(root: string, config: RepoConfig, opts: { onWarn?:
   }
   inferGoogleHost(usages, sdks);
 
+  // Model IDs found only through a code shape (a model enum, list, per-provider map, model-shaped call) count when
+  // the repo shows it really uses that provider: calls, dependencies, imports, a model CLI, or its API key
+  let kept = usages;
+  if (usages.some((u) => u.weak)) {
+    const ev = await repoEvidence(root, { usages, sdks, manifests, sources: evidenceLines });
+    kept = usages.filter((u) => !u.weak || provenUse(ev, u.provider));
+  }
+  for (const u of kept) delete u.weak;
+
   return {
     root,
     scannedAt: new Date().toISOString(),
     filesScanned: files.length,
     sdks,
-    usages: usages.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line),
+    usages: kept.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line),
   };
 }
 

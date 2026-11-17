@@ -34,8 +34,10 @@ function matchModel(patterns: string[], model: string): boolean {
 }
 
 /**
- * "* /v1/threads" matches /v1/threads and everything under it. Path parameters match any segment on either side,
- * so the spec's /repos/{owner}/{repo} matches code calling /repos/{id}/{id} or /repos/acme/app.
+ * "* /v1/threads" matches /v1/threads and everything under it. A path parameter in the pattern matches any segment,
+ * so the spec's /repos/{owner}/{repo} matches code calling /repos/{id}/{id} or /repos/acme/app. A segment the code
+ * builds at runtime ({id}) only matches a parameter, never a fixed name: `/repos/${repo}/${path}` can't be said to
+ * call /repos/{owner}/{repo}/import.
  */
 function matchOp(patterns: string[], op: string): boolean {
   const [method, path] = op.split(" ");
@@ -50,7 +52,8 @@ function matchOp(patterns: string[], op: string): boolean {
     // the pattern must match the whole path when it has parameters (an exact operation), or a prefix otherwise
     const exact = ps.some(param) || pm !== "*";
     if (exact ? segs.length !== ps.length : segs.length < ps.length) return false;
-    return ps.every((s, i) => s === segs[i] || param(s) || param(segs[i]));
+    // "{}" is a segment the lookup client masked (the service answers with a superset), so it matches anything
+    return ps.every((s, i) => s === segs[i] || param(s) || segs[i] === "{}");
   });
 }
 

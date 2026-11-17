@@ -18,9 +18,10 @@ Finds where your code calls third-party AI APIs, then tells you what breaks, and
 - **Pinned API versions**, e.g. `anthropic-version` headers.
 - **Model IDs outside code** (config files, YAML, `.env`, notebooks), reported at "possible" confidence.
 - **Model settings in any form:** framework IDs with a provider prefix (`anthropic/claude-…`, `bedrock/…`), flag and option defaults (`--model`), and IDs of a provider's own objects (OpenAI prompt objects, `pmpt_…`).
-- **Listed vs used.** A model that's only offered (a model list, picker, registry or type union) is reported as "listed": it never fails a PR check and comes after the places that call a model.
+- **Listed vs used.** A model that's only offered (a model list, enum, picker, registry, alias map or type union) is reported as "listed": it never fails a PR check and comes after the places that call a model. Models found only through such a shape count when the repo shows it really uses that provider.
+- **API versions in URLs** wherever they're written: base-URL constants, settings, wrappers and helpers.
 
-It uses tree-sitter, not regex, so strings, comments and look-alike names don't count. Repeated hits in one file are grouped, and test and fixture files rank lower.
+It uses tree-sitter, not regex, so strings, comments and look-alike names don't count. Repeated hits in one file are grouped. Findings in tests, examples, fixtures and sample data are listed apart at the end; they never fail a PR check.
 
 ## Usage
 

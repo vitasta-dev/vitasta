@@ -28,6 +28,8 @@ export interface ProviderDef {
   versionKeys?: string[];
   /** Pulls a pinned version out of a request URL: Shopify /admin/api/2025-07/, Meta /v21.0/ */
   urlVersion?: RegExp;
+  /** The urlVersion path is this provider's alone, so a URL counts even when its host is a variable (built-in only) */
+  urlVersionStandsAlone?: boolean;
   /** Turns an SDK version constant into the version string, e.g. ApiVersion.July25 → 2025-07 */
   versionConst?: (text: string) => string | undefined;
   /** Extra words that mark a file as possibly using this provider (for the fast file filter) */
@@ -263,6 +265,7 @@ export const PROVIDERS: ProviderDef[] = [
     versionHeaders: [],
     versionKeys: ["apiVersion", "api_version"],
     urlVersion: /\/admin\/api\/(\d{4}-\d{2})\//,
+    urlVersionStandsAlone: true,
     versionConst: shopifyVersionConst,
     modelPattern: NEVER,
     sdkOps: {},

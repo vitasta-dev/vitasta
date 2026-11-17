@@ -45,13 +45,23 @@ export function groupFindings(findings: Finding[]): Group[] {
   return [...byKey.values()];
 }
 
+function titleOf(f: Finding, where: string): string {
+  const u = f.usage;
+  return f.change.type === "model_retirement" && u.model
+    ? `${code(u.model)}${where} ${f.change.earliest ? "can be retired" : f.daysLeft <= 0 ? "is retired" : "is being retired"}`
+    : text(f.change.title);
+}
+
 /** `after` adds a line under each finding (the App uses it for a "not an issue" checkbox). */
 export function renderMarkdown(map: ApiMap, findings: Finding[], repoLabel: string, opts?: { after?: (f: Finding) => string | undefined }): string {
   const lines: string[] = [];
   lines.push(`# Vitasta impact report: ${repoLabel}`, "");
   lines.push(`Scanned ${map.filesScanned} source files on ${new Date(map.scannedAt).toLocaleDateString("en-CA")}.`, "");
 
-  const groups = groupFindings(findings);
+  // Test, example and fixture files are listed apart at the end: recorded data and mocks repeat model names, and
+  // they never fail a check
+  const groups = groupFindings(findings.filter((f) => !f.usage.inTest));
+  const testGroups = groupFindings(findings.filter((f) => f.usage.inTest));
   const count = (s: Finding["status"]) => groups.filter((g) => g.first.status === s);
   lines.push("| Status | Issues | Places in code |", "|---|---|---|");
   for (const s of Object.keys(STATUS) as Finding["status"][]) {
@@ -59,6 +69,7 @@ export function renderMarkdown(map: ApiMap, findings: Finding[], repoLabel: stri
     lines.push(`| ${STATUS[s]} | ${gs.length} | ${gs.reduce((n, g) => n + g.lines.length, 0)} |`);
   }
   lines.push("");
+  if (testGroups.length) lines.push(`Plus ${testGroups.length} in tests, examples and fixtures, listed at the end. They never fail a check.`, "");
 
   if (groups.length) {
     lines.push("## What breaks", "");
@@ -66,10 +77,7 @@ export function renderMarkdown(map: ApiMap, findings: Finding[], repoLabel: stri
       const f = g.first;
       const u = f.usage;
       const where = u.host ? ` on ${{ bedrock: "Amazon Bedrock", vertex: "Vertex AI", azure: "Azure" }[u.host]}` : "";
-      const title =
-        f.change.type === "model_retirement" && u.model
-          ? `${code(u.model)}${where} ${f.change.earliest ? "can be retired" : f.daysLeft <= 0 ? "is retired" : "is being retired"}`
-          : text(f.change.title);
+      const title = titleOf(f, where);
       lines.push(`### ${STATUS[f.status]}: ${title}`);
       const shown = g.lines.slice(0, 8).join(", ");
       const more = g.lines.length > 8 ? ` and ${g.lines.length - 8} more` : "";
@@ -81,14 +89,24 @@ export function renderMarkdown(map: ApiMap, findings: Finding[], repoLabel: stri
       if (f.change.unconfirmed) lines.push("- **Source:** found by comparing the provider's published API spec over time; not yet announced in a changelog. Worth checking before acting.");
       if (f.change.replacement) lines.push(`- **Move to:** ${text(f.change.replacement)}`);
       if (f.change.guide) lines.push(`- **Guide:** ${url(f.change.guide)}`);
-      lines.push(`- **Confidence:** ${g.confidence}${u.inTest ? " (test, example or fixture file)" : ""}`);
+      lines.push(`- **Confidence:** ${g.confidence}`);
       if (u.listed) lines.push("- **Note:** offered in a model list, picker or type, not called here. It breaks for whoever picks it.");
       lines.push("", fence(u.snippet), "");
       const extra = opts?.after?.(f);
       if (extra) lines.push(extra, "");
     }
   } else {
-    lines.push("No known upcoming breaking changes affect this repo.", "");
+    lines.push(testGroups.length ? "Nothing outside tests, examples and fixtures." : "No known upcoming breaking changes affect this repo.", "");
+  }
+
+  if (testGroups.length) {
+    lines.push(`<details><summary>In tests, examples and fixtures (${testGroups.length})</summary>`, "");
+    for (const g of testGroups) {
+      const f = g.first;
+      const shown = g.lines.slice(0, 5).join(", ") + (g.lines.length > 5 ? ` and ${g.lines.length - 5} more` : "");
+      lines.push(`- ${STATUS[f.status]}: ${titleOf(f, "")} in ${code(f.usage.file)} line${g.lines.length > 1 ? "s" : ""} ${shown}`);
+    }
+    lines.push("", "</details>", "");
   }
 
   if (findings.some((f) => f.usage.host === "azure")) {

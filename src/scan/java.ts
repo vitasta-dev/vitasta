@@ -3,6 +3,7 @@ import { PROVIDERS, matchUrl, modelProvider, providerById, sdkOp, urlVersionOf }
 import type { ModelSpan, Span, Usage } from "../types.js";
 import { normalizePath } from "./js.js";
 import { alwaysCounts, javaSetting } from "./context.js";
+import { candidateKind } from "./shapes.js";
 import { lineOf, named, nodesOfType, snippetOf, type Node, type Tree } from "./parser.js";
 
 const require = createRequire(import.meta.url);
@@ -310,8 +311,15 @@ function modelRefs(ctx: JavaCtx): Usage[] {
     if (ctx.consumed.has(s.startIndex)) continue;
     const v = stringValue(s);
     const p = v !== undefined ? modelProvider(v) : undefined;
-    if (p && v && !alwaysCounts(v) && !javaSetting(s)) continue;
-    if (p && v) out.push({ provider: p.id, kind: "model-ref", lang: "java", file: ctx.file, line: lineOf(s), model: v, confidence: "possible", snippet: snippetOf(ctx.source, s), modelSpan: { start: s.startIndex, end: s.endIndex, kind: "string" } });
+    if (!p || !v) continue;
+    const strict = alwaysCounts(v) || javaSetting(s);
+    // Otherwise a model enum, array or model-shaped call counts if the repo uses the provider
+    const cand = strict ? undefined : candidateKind(s, ["string_literal"], (t) => !!modelProvider(t));
+    if (!strict && !cand) continue;
+    out.push({
+      ...(cand === "listed" ? { listed: true } : {}), ...(strict ? {} : { weak: true }),
+      provider: p.id, kind: "model-ref", lang: "java", file: ctx.file, line: lineOf(s), model: v, confidence: "possible", snippet: snippetOf(ctx.source, s), modelSpan: { start: s.startIndex, end: s.endIndex, kind: "string" },
+    });
   }
   // static final Model DEFAULT = Model.CLAUDE_3_HAIKU_20240307;
   for (const f of nodesOfType(ctx.tree.rootNode, "field_access")) {

@@ -54,6 +54,8 @@ export interface Usage {
    * but never fails a PR check, and listed after the places that call a model.
    */
   listed?: boolean;
+  /** Internal: found through a code shape only; kept when the repo shows it uses this provider (scan/evidence.ts) */
+  weak?: boolean;
   /** Set when the usage was found from an ID of the provider's own object (e.g. an OpenAI prompt object ID) */
   resource?: string;
   /** Removal range for each parameter passed to the call (object property, keyword argument, Java setter) */

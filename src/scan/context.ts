@@ -13,7 +13,9 @@ import type { Node } from "./parser.js";
 
 const MODELISH = /model/i;
 /** Names that hold model IDs as data, not as the model the app uses */
-const NOT_A_SETTING = /hint|prefix|pattern|keyword|famil|pric|cost|limit|token|context|window|alias|retired|deprecat|replacement|legacy|_map$|map$|table|capabilit|label/i;
+const NOT_A_SETTING = /hint|prefix|pattern|keyword|famil|pric|cost|limit|token|context|window|alias|retired|deprecat|replacement|legacy|_map$|map$|table|capabilit|label|placeholder|example|sample|demo|seed|display/i;
+/** A map from model ID to a display name is for showing results, not a picker: MODEL_NAMES, DISPLAY_NAMES */
+const DISPLAY_MAP = /names$|_names|display|pretty|title|label/i;
 /** Collections named for a capability are lookup sets, not the models the app uses: NO_SAMPLING_MODELS, REASONING_MODELS */
 const CAPABILITY_LIST = /sampling|temperature|reasoning|vision|thinking|(^|_)no_|unsupported|without|feature|cache|tool|json|stream/i;
 /** Keys inside a model registry entry: MODELS = [{ name: "gpt-4o-mini", … }] */
@@ -127,7 +129,7 @@ export function jsSettingKind(s: Node): SettingKind | undefined {
         const v = p.childForFieldName("value");
         const labelValue = v?.type === "string" && looksLikeLabel(v.text);
         const entryObject = v?.type === "object" && /\b(label|title|displayName|description|name)\s*:/.test(v.text) && !/\d\s*[,}]/.test(v.text.replace(/["'][^"']*["']/g, ""));
-        return kindOf((labelValue || entryObject) && listOwnerIsSetting(obj, JS_WRAPPERS, ["variable_declarator", "pair", "assignment_expression"], ownerName), "listed");
+        return kindOf((labelValue || entryObject) && listOwnerIsSetting(obj, JS_WRAPPERS, ["variable_declarator", "pair", "assignment_expression"], ownerName) && !DISPLAY_MAP.test(ownerOf(obj, JS_WRAPPERS)), "listed");
       }
       return undefined;
     }
@@ -197,7 +199,7 @@ export function pySettingKind(s: Node): SettingKind | undefined {
       if (!isValue && dict?.type === "dictionary") {
         const v = p.childForFieldName("value");
         const labelValue = v?.type === "string" && looksLikeLabel(v.text);
-        return kindOf(labelValue && listOwnerIsSetting(dict, PY_WRAPPERS, ["assignment", "keyword_argument", "pair"], ownerName), "listed");
+        return kindOf(labelValue && listOwnerIsSetting(dict, PY_WRAPPERS, ["assignment", "keyword_argument", "pair"], ownerName) && !DISPLAY_MAP.test(ownerOf(dict, PY_WRAPPERS)), "listed");
       }
       return undefined;
     }
@@ -253,6 +255,11 @@ export function configKeySetting(lineBeforeToken: string): boolean {
 
 function ownerName(o: Node): string {
   return (o.childForFieldName("name") ?? o.childForFieldName("key") ?? o.childForFieldName("left"))?.text ?? "";
+}
+
+function ownerOf(list: Node, wrappers: string[]): string {
+  const o = climb(list, wrappers).parent;
+  return o ? ownerName(o) : "";
 }
 
 function listOwnerIsSetting(list: Node, wrappers: string[], owners: string[], nameOf: (o: Node) => string, isCollection = false): boolean {

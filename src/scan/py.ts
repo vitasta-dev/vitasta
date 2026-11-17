@@ -2,6 +2,7 @@ import { PROVIDERS, hostOfClass, matchUrl, mentionsRouter, modelProvider, modelR
 import type { ModelSpan, Span, Usage } from "../types.js";
 import { normalizePath } from "./js.js";
 import { alwaysCounts, inModelCollection, isPairKey, pySettingKind } from "./context.js";
+import { candidateKind, inCostContext, inDataCollection, inRecordedResponse } from "./shapes.js";
 import { lineOf, named, nodesOfType, snippetOf, type Node, type Tree } from "./parser.js";
 
 interface PyCtx {
@@ -418,10 +419,15 @@ function modelRefs(ctx: PyCtx): Usage[] {
     const ref = modelRef(v, routed);
     if (!ref) continue;
     // A cloud-form ID (Vertex "@", Bedrock "anthropic.") counts anywhere except as a lookup-table key (prices, sizes)
-    const kind = pySettingKind(s) ?? (alwaysCounts(ref.model) && !isPairKey(s, ["parenthesized_expression"]) ? (inModelCollection(s, (k) => !!modelRef(k)) ? "listed" : "setting") : undefined);
+    // A model in a recorded or mocked API response is output, and one in pricing or cost code is an estimate input
+    if (inRecordedResponse(s) || inCostContext(s)) continue;
+    const strict = pySettingKind(s) ?? (alwaysCounts(ref.model) && !isPairKey(s, ["parenthesized_expression"]) && !inDataCollection(s) ? (inModelCollection(s, (k) => !!modelRef(k)) ? "listed" : "setting") : undefined);
+    // Otherwise a model enum, list, per-provider map or model-shaped call counts if the repo uses the provider
+    const kind = strict ?? candidateKind(s, ["string"], (t) => !!modelRef(t, routed));
     if (!kind) continue;
     out.push({
       ...(kind === "listed" ? { listed: true } : {}),
+      ...(strict ? {} : { weak: true }),
       provider: ref.provider.id, kind: "model-ref", lang: "py", file: ctx.file, line: lineOf(s),
       model: ref.model, confidence: "possible", snippet: snippetOf(ctx.source, s), host: ref.host ?? fileHost(ctx),
       // A prefixed ID ("anthropic/claude-x") isn't rewritten by fix PRs: the replacement has no prefix

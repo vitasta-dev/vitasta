@@ -33,7 +33,9 @@ describe("loose model strings: settings count, data and labels don't", () => {
   it("Python, including clients pointed at a relay server", async () => {
     const map = await scanRepo(resolve(import.meta.dirname, "fixtures/noise"));
     const py = map.usages.filter((u) => u.file === "py/agent.py" && u.model).map((u) => `${u.line}:${u.model}${u.proxy ? ` via ${u.proxy}` : ""}`);
-    expect(py).toEqual(["3:gpt-4-turbo", "8:gpt-3.5-turbo", "11:gpt-4-turbo via relay.example.com"]);
+    // A list or loop of models counts in a repo that uses the provider (17 Nov review of 138 top repos: fallback
+    // lists and model loops are real uses); a context-window table still doesn't
+    expect(py).toEqual(["3:gpt-4-turbo", "4:gpt-4o", "4:gpt-4.1", "6:gpt-4o", "6:o3", "8:gpt-3.5-turbo", "11:gpt-4-turbo via relay.example.com"]);
   });
 
   it("YAML config: model keys and lists under model keys only", async () => {

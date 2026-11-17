@@ -111,7 +111,8 @@ export function evaluatePr(findings: Finding[], changed: ChangedLines, failOn: F
     return !!lines && (lines.has(f.usage.line) || !!f.usage.alsoLines?.some((l) => lines.has(l)));
   };
   const introduced = findings.filter(touches);
-  const existing = findings.filter((f) => !introduced.includes(f));
+  // Known issues elsewhere leave out tests, examples and fixtures (recorded data); ones this PR touches are shown
+  const existing = findings.filter((f) => !introduced.includes(f) && !f.usage.inTest);
   const blocking = introduced.filter((f) => canBlock(f, failOn, minConfidence));
   const conclusion = blocking.length ? "failure" : introduced.length || existing.length ? "neutral" : "success";
   const title = blocking.length
