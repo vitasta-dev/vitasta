@@ -1,0 +1,31 @@
+{
+  "id": "sendgrid",
+  "hosts": [
+    "api.sendgrid.com"
+  ],
+  "packages": {
+    "ts": [
+      "@sendgrid/mail",
+      "@sendgrid/client"
+    ],
+    "js": [
+      "@sendgrid/mail",
+      "@sendgrid/client"
+    ],
+    "py": [
+      "sendgrid"
+    ],
+    "java": [
+      "com.sendgrid:sendgrid-java"
+    ],
+    "rb": [
+      "sendgrid-ruby"
+    ],
+    "php": [
+      "sendgrid/sendgrid"
+    ],
+    "cs": [
+      "SendGrid"
+    ]
+  }
+}

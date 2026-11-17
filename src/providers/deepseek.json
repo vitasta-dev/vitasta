@@ -1,0 +1,7 @@
+{
+  "id": "deepseek",
+  "hosts": [
+    "api.deepseek.com"
+  ],
+  "modelPattern": "^deepseek-(chat|reasoner|coder|flash|pro|v\\d[a-z0-9.-]*)$"
+}

@@ -1,0 +1,31 @@
+{
+  "id": "groq",
+  "hosts": [
+    "api.groq.com"
+  ],
+  "packages": {
+    "ts": [
+      "groq-sdk"
+    ],
+    "js": [
+      "groq-sdk"
+    ],
+    "py": [
+      "groq"
+    ]
+  },
+  "clientClasses": [
+    "Groq",
+    "AsyncGroq"
+  ],
+  "modelPattern": "^(groq/compound(-mini)?|(llama|gemma\\d?|mixtral|deepseek-r1-distill|qwen)[a-z0-9.-]*-(versatile|instant|specdec|preview))$",
+  "sdkOps": {
+    "chat.completions.create": "POST /openai/v1/chat/completions",
+    "chat.completions.stream": "POST /openai/v1/chat/completions",
+    "audio.transcriptions.create": "POST /openai/v1/audio/transcriptions",
+    "audio.translations.create": "POST /openai/v1/audio/translations",
+    "audio.speech.create": "POST /openai/v1/audio/speech",
+    "models.list": "GET /openai/v1/models",
+    "batches": "* /openai/v1/batches"
+  }
+}

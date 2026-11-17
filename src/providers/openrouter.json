@@ -1,0 +1,31 @@
+{
+  "id": "openrouter",
+  "hosts": [
+    "openrouter.ai"
+  ],
+  "packages": {
+    "ts": [
+      "@openrouter/ai-sdk-provider",
+      "@openrouter/sdk"
+    ],
+    "js": [
+      "@openrouter/ai-sdk-provider",
+      "@openrouter/sdk"
+    ],
+    "py": [
+      "openrouter"
+    ]
+  },
+  "clientClasses": [
+    "OpenRouter",
+    "createOpenRouter"
+  ],
+  "publicModelPattern": "^(openai|anthropic|google|meta|meta-llama|meta-models|mistralai|deepseek|deepseek-ai|qwen|x-ai|xai|z-ai|zai-org|thudm|moonshotai|minimax|minimaxai|cohere|perplexity|amazon|microsoft|nvidia|nousresearch|ai21|alibaba|baidu|tencent|bytedance|bytedance-seed|liquid|liquidai|inclusionai|thinkingmachines|togethercomputer|black-forest-labs|arcee-ai|ibm-granite|01-ai|allenai|gryphe|sao10k|thedrummer|cognitivecomputations|baai|intfloat|servicenow-ai|mistral|stepfun-ai|swiss-ai|essentialai|marin-community|upstage|inception|morph|relace|switchpoint|openrouter|kwaipilot|cartesia|hexgrad|canopylabs|lgai-exaone|whereisai|salesforce|snowflake|databricks)/[a-z0-9][a-z0-9._-]{0,120}(:(free|beta|extended|thinking|nitro|floor|online|batch))?$",
+  "sdkOps": {
+    "chat.completions.create": "POST /api/v1/chat/completions",
+    "chat.send": "POST /api/v1/chat/completions",
+    "completions.create": "POST /api/v1/completions",
+    "embeddings.create": "POST /api/v1/embeddings",
+    "responses.create": "POST /api/v1/responses"
+  }
+}

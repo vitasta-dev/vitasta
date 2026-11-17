@@ -1,0 +1,1 @@
+{ "dependencies": { "openai": "^5.0.0", "@notionhq/client": "^2.2.0" } }

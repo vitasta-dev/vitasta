@@ -1,0 +1,24 @@
+{
+  "id": "paypal",
+  "hosts": [
+    "api-m.paypal.com",
+    "api-m.sandbox.paypal.com",
+    "api.paypal.com",
+    "api.sandbox.paypal.com"
+  ],
+  "packages": {
+    "ts": [
+      "@paypal/paypal-server-sdk",
+      "@paypal/checkout-server-sdk"
+    ],
+    "js": [
+      "@paypal/paypal-server-sdk",
+      "@paypal/checkout-server-sdk"
+    ],
+    "py": [
+      "paypal-server-sdk",
+      "paypalrestsdk",
+      "paypal-checkout-serversdk"
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "id": "xai",
+  "hosts": [
+    "api.x.ai"
+  ],
+  "packages": {
+    "py": [
+      "xai-sdk"
+    ]
+  },
+  "modelPattern": "^grok-[0-9][a-z0-9.-]*$",
+  "clientClasses": [
+    "AsyncClient",
+    "Client"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "id": "meta-marketing",
+  "hosts": [
+    "graph.facebook.com"
+  ],
+  "pathPattern": "^/v\\d+\\.\\d+/act_",
+  "packages": {
+    "ts": [
+      "facebook-nodejs-business-sdk"
+    ],
+    "js": [
+      "facebook-nodejs-business-sdk"
+    ],
+    "py": [
+      "facebook_business",
+      "facebook-business"
+    ],
+    "php": [
+      "facebook/php-business-sdk"
+    ],
+    "java": [
+      "com.facebook.business.sdk:facebook-java-business-sdk"
+    ],
+    "rb": [
+      "facebookbusiness"
+    ]
+  },
+  "clientClasses": [
+    "FacebookAdsApi"
+  ],
+  "versionKeys": [
+    "api_version",
+    "apiVersion",
+    "version"
+  ],
+  "urlVersion": "/(v\\d+\\.\\d+)/"
+}

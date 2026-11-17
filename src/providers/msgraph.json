@@ -1,0 +1,36 @@
+{
+  "id": "msgraph",
+  "hosts": [
+    "graph.microsoft.com"
+  ],
+  "packages": {
+    "ts": [
+      "@microsoft/microsoft-graph-client",
+      "@microsoft/msgraph-sdk"
+    ],
+    "js": [
+      "@microsoft/microsoft-graph-client",
+      "@microsoft/msgraph-sdk"
+    ],
+    "py": [
+      "msgraph-sdk",
+      "msgraph-beta-sdk"
+    ],
+    "java": [
+      "com.microsoft.graph:microsoft-graph"
+    ],
+    "cs": [
+      "Microsoft.Graph"
+    ],
+    "go": [
+      "github.com/microsoftgraph/msgraph-sdk-go"
+    ],
+    "php": [
+      "microsoft/microsoft-graph"
+    ]
+  },
+  "clientClasses": [
+    "Client",
+    "GraphServiceClient"
+  ]
+}

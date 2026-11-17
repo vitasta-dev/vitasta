@@ -1,0 +1,45 @@
+name: Vitasta API check
+description: Fail pull requests that add calls to retired or soon-retiring AI models and APIs. Runs entirely in your CI.
+branding:
+  icon: alert-triangle
+  color: orange
+
+inputs:
+  feed:
+    description: Optional path to a local Vitasta change feed (JSON files) inside the workspace. Without it, dates are looked up on app.vitasta.dev (model names, API operations and versions only; never code).
+    required: false
+    default: ""
+  base:
+    description: Git ref to compare against. Defaults to the pull request's base branch.
+    required: false
+    default: ""
+  path:
+    description: Directory to scan, relative to the workspace.
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+
+    - name: Install Vitasta scanner
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci --ignore-scripts --no-audit --no-fund
+
+    # Inputs go through env vars, never straight into the script, so they can't inject shell commands.
+    - name: Check this change
+      shell: bash
+      env:
+        VITASTA_FEED: ${{ inputs.feed }}
+        VITASTA_BASE: ${{ inputs.base }}
+        VITASTA_PATH: ${{ inputs.path }}
+        PR_BASE_REF: ${{ github.base_ref }}
+      run: |
+        base="${VITASTA_BASE:-origin/${PR_BASE_REF:-main}}"
+        cd "$GITHUB_WORKSPACE"
+        npx --prefix "$GITHUB_ACTION_PATH" tsx "$GITHUB_ACTION_PATH/src/cli.ts" check "$VITASTA_PATH" \
+          --base "$base" ${VITASTA_FEED:+--feed "$GITHUB_WORKSPACE/$VITASTA_FEED"} --github

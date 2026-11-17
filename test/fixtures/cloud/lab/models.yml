@@ -1,0 +1,5 @@
+models:
+  - name: claude-sonnet-4
+    model_id: "eu.anthropic.claude-sonnet-4-20250514-v1:0"
+  - name: description-only
+    note: "not a model: anthropic-claude-guide"

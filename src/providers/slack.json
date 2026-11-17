@@ -1,0 +1,32 @@
+{
+  "id": "slack",
+  "hosts": [
+    "slack.com"
+  ],
+  "packages": {
+    "ts": [
+      "@slack/web-api",
+      "@slack/bolt"
+    ],
+    "js": [
+      "@slack/web-api",
+      "@slack/bolt"
+    ],
+    "py": [
+      "slack_sdk",
+      "slack-sdk",
+      "slack_bolt",
+      "slack-bolt",
+      "slackclient"
+    ],
+    "java": [
+      "com.slack.api:slack-api-client",
+      "com.slack.api:bolt"
+    ]
+  },
+  "clientClasses": [
+    "WebClient",
+    "AsyncWebClient"
+  ],
+  "opTemplate": "POST /api/{call}"
+}

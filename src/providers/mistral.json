@@ -1,0 +1,42 @@
+{
+  "id": "mistral",
+  "hosts": [
+    "api.mistral.ai",
+    "codestral.mistral.ai"
+  ],
+  "packages": {
+    "ts": [
+      "@mistralai/mistralai"
+    ],
+    "js": [
+      "@mistralai/mistralai"
+    ],
+    "py": [
+      "mistralai"
+    ]
+  },
+  "clientClasses": [
+    "Mistral",
+    "MistralClient",
+    "MistralAsyncClient"
+  ],
+  "modelPattern": "^(mistral|codestral|pixtral|ministral|magistral|devstral|voxtral|open-mistral|open-mixtral|open-codestral)-[a-z0-9.-]+$",
+  "sdkOps": {
+    "chat.complete": "POST /v1/chat/completions",
+    "chat.complete_async": "POST /v1/chat/completions",
+    "chat.stream": "POST /v1/chat/completions",
+    "chat.stream_async": "POST /v1/chat/completions",
+    "chat.parse": "POST /v1/chat/completions",
+    "fim.complete": "POST /v1/fim/completions",
+    "fim.stream": "POST /v1/fim/completions",
+    "embeddings.create": "POST /v1/embeddings",
+    "ocr.process": "POST /v1/ocr",
+    "agents.complete": "POST /v1/agents/completions",
+    "agents.stream": "POST /v1/agents/completions",
+    "classifiers": "* /v1/moderations",
+    "audio.transcriptions": "* /v1/audio/transcriptions",
+    "batch.jobs": "* /v1/batch/jobs",
+    "fine_tuning.jobs": "* /v1/fine_tuning/jobs",
+    "models.list": "GET /v1/models"
+  }
+}

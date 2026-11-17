@@ -1,0 +1,1 @@
+{ "require": { "openai-php/client": "^0.10", "stripe/stripe-php": "^13.0" } }

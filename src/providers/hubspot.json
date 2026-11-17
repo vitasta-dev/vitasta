@@ -1,0 +1,26 @@
+{
+  "id": "hubspot",
+  "hosts": [
+    "api.hubapi.com"
+  ],
+  "packages": {
+    "ts": [
+      "@hubspot/api-client"
+    ],
+    "js": [
+      "@hubspot/api-client"
+    ],
+    "py": [
+      "hubspot-api-client"
+    ],
+    "php": [
+      "hubspot/api-client"
+    ],
+    "rb": [
+      "hubspot-api-client"
+    ]
+  },
+  "clientClasses": [
+    "Client"
+  ]
+}

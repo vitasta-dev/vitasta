@@ -1,0 +1,23 @@
+ignore:
+  - "legacy/**"
+providers:
+  - id: acme-billing
+    hosts: [billing.acme.internal]
+    urlVersion: "/v(\\d+)/"
+  - id: evil
+    hosts: [evil.example]
+    modelPattern: "(a+)+$"
+changes:
+  - id: acme-billing-v1
+    provider: acme-billing
+    type: version_sunset
+    title: Acme Billing API v1 is retired
+    selector: { versions: ["1"] }
+    effective: "2026-12-01"
+    trigger: date
+  - id: broken-record
+    provider: acme-billing
+policy:
+  failOn: [broken]
+  urgentDays: 60
+  accept: [openai-gpt-4-0613-retire-2026-10-23]

@@ -1,0 +1,27 @@
+{
+  "id": "notion",
+  "hosts": [
+    "api.notion.com"
+  ],
+  "packages": {
+    "ts": [
+      "@notionhq/client"
+    ],
+    "js": [
+      "@notionhq/client"
+    ],
+    "py": [
+      "notion-client"
+    ]
+  },
+  "versionHeaders": [
+    "Notion-Version"
+  ],
+  "versionKeys": [
+    "notionVersion",
+    "notion_version"
+  ],
+  "clientClasses": [
+    "Client"
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "name": "@vitasta/scanner",
+  "version": "0.1.1",
+  "description": "Find AI models and APIs your code uses that are retired or retiring, with the date and what to move to.",
+  "keywords": [
+    "deprecation",
+    "retirement",
+    "openai",
+    "anthropic",
+    "gemini",
+    "api",
+    "sunset",
+    "mcp",
+    "dependabot"
+  ],
+  "homepage": "https://vitasta.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vitasta-dev/vitasta.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vitasta-dev/vitasta/issues"
+  },
+  "license": "SEE LICENSE IN LICENSE.md",
+  "type": "module",
+  "bin": {
+    "scanner": "dist/cli.js",
+    "vitasta": "dist/cli.js",
+    "vitasta-mcp": "dist/mcp.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE.md",
+    "TRADEMARKS.md",
+    "SECURITY.md",
+    "action.yml",
+    "docs",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "mcp": "tsx src/mcp.ts",
+    "bench:sample": "tsx bench/sample.ts",
+    "bench:label": "tsx bench/label.ts",
+    "bench:gate": "tsx bench/gate.ts",
+    "prepublishOnly": "npm run build && npx vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "tree-sitter-c-sharp": "0.23.1",
+    "tree-sitter-go": "0.23.4",
+    "tree-sitter-java": "0.23.5",
+    "tree-sitter-php": "0.23.12",
+    "tree-sitter-python": "0.23.6",
+    "tree-sitter-ruby": "0.23.1",
+    "tree-sitter-typescript": "0.23.2",
+    "web-tree-sitter": "0.25.10",
+    "yaml": "2.8.1",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4"
+  }
+}
