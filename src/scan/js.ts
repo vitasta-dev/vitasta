@@ -2,7 +2,7 @@ import { dirname, resolve } from "node:path";
 import { PROVIDERS, hostOfClass, matchUrl, mentionsRouter, modelProvider, modelRef, providerById, sdkOp, urlVersionOf, type ProviderDef } from "../providers.js";
 import type { ModelSpan, Span, Usage } from "../types.js";
 import { alwaysCounts, inModelCollection, isPairKey, jsSettingKind } from "./context.js";
-import { candidateKind, inCostContext, inDataCollection, inRecordedResponse } from "./shapes.js";
+import { candidateKind, collectionName, inCostContext, inDataCollection, inDataTable, inExampleOrTokenizer, inRecordedResponse } from "./shapes.js";
 import { lineOf, named, nodesOfType, snippetOf, type Node, type Tree } from "./parser.js";
 
 /** Clients exported from a module: absolute path without extension → exported name → provider id. */
@@ -564,14 +564,16 @@ function modelRefs(ctx: FileCtx): Usage[] {
     // Only model settings count: DEFAULT_MODEL = "…", { model: "…" }, MODELS = [...], anthropic("…")
     // A cloud-form ID (Vertex "@", Bedrock "anthropic.") counts anywhere except as a lookup-table key (prices, sizes)
     // A model in a recorded or mocked API response is output, and one in pricing or cost code is an estimate input
-    if (inRecordedResponse(s) || inCostContext(s)) continue;
-    const strict = jsSettingKind(s) ?? (alwaysCounts(ref.model) && !isPairKey(s, ["parenthesized_expression"]) && !inDataCollection(s) ? (inModelCollection(s, (k) => !!modelRef(k)) ? "listed" : "setting") : undefined);
+    if (inRecordedResponse(s) || inCostContext(s) || inExampleOrTokenizer(s)) continue;
+    const ownKind = jsSettingKind(s);
+    // A model-named list inside a table of capabilities or prices (models: [...] in a compatibility matrix) is data
+    const strict = (ownKind === "listed" && inDataTable(s) ? undefined : ownKind) ?? (alwaysCounts(ref.model) && !isPairKey(s, ["parenthesized_expression"]) && !inDataCollection(s) ? (inModelCollection(s, (k) => !!modelRef(k)) ? "listed" : "setting") : undefined);
     // Otherwise a model enum, list, per-provider map or model-shaped call counts if the repo uses the provider
     const kind = strict ?? candidateKind(s, ["string", "template_string"], (t) => !!modelRef(t, routed));
     if (!kind) continue;
     const editable = !ref.prefixed && (s.type === "string" || !named(s).some((c) => c.type === "template_substitution"));
     out.push({
-      ...(kind === "listed" ? { listed: true } : {}),
+      ...(kind === "listed" ? { listed: true, owner: collectionName(s) } : {}),
       ...(strict ? {} : { weak: true }),
       provider: ref.provider.id, kind: "model-ref", lang: ctx.lang, file: ctx.file, line: lineOf(s),
       model: ref.model, confidence: "possible", snippet: snippetOf(ctx.source, s), host: ref.host ?? fileHost(ctx),

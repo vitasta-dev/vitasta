@@ -1,0 +1,3 @@
+model: claude-3-opus-20240229
+retired_on: 2026-01-05
+replacement: claude-opus-4-1

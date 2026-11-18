@@ -50,6 +50,8 @@ export function queryOf(usages: Usage[]): QueryUsage[] {
   const out = new Map<string, QueryUsage>();
   for (const u of usages) {
     if (!BUILT_IN.has(u.provider)) continue;
+    // Reached through something that isn't the provider's API: no retirement of the provider's applies
+    if (u.via) continue;
     const q: QueryUsage = { provider: u.provider, kind: u.kind };
     const model = u.model ? publicModel(u.model) : undefined;
     if (model) q.model = model;

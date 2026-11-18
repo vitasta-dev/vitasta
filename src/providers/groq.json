@@ -18,7 +18,7 @@
     "Groq",
     "AsyncGroq"
   ],
-  "modelPattern": "^(groq/compound(-mini)?|(llama|gemma\\d?|mixtral|deepseek-r1-distill|qwen)[a-z0-9.-]*-(versatile|instant|specdec|preview|\\d{4,6}))$",
+  "modelPattern": "^(groq/compound(-mini)?|deepseek-r1-distill-(llama|qwen)-\\d+b|(llama|gemma\\d?|mixtral|deepseek-r1-distill|qwen)[a-z0-9.-]*-(versatile|instant|specdec|preview|\\d{4,6}))$",
   "sdkOps": {
     "chat.completions.create": "POST /openai/v1/chat/completions",
     "chat.completions.stream": "POST /openai/v1/chat/completions",

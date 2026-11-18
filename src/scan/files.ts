@@ -28,7 +28,8 @@ export interface SourceFile {
 }
 
 export function langOf(file: string): Lang | undefined {
-  if (file.endsWith(".d.ts") || file.endsWith(".min.js")) return undefined;
+  // Type declarations, minified and bundled output (app.min.js, vendor.bundle.js, _ds_bundle.js) aren't source
+  if (file.endsWith(".d.ts") || /[.\-_](min|bundle)\.[cm]?js$/.test(file)) return undefined;
   const dot = file.lastIndexOf(".");
   return dot >= 0 ? EXT[file.slice(dot)] : undefined;
 }

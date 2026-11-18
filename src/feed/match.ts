@@ -89,6 +89,7 @@ export function matches(change: ChangeRecord, u: Usage): boolean {
   // Azure / Bedrock / Vertex retire models on their own schedules: a hosted model only matches that host's
   // records, and a model on the provider's own API only matches the provider's records.
   if (change.type === "model_retirement" || change.type === "model_deprecation") {
+    if (u.via) return false;
     if (s.hosts ? !u.host || !s.hosts.includes(u.host) : !!u.host) return false;
   } else if (s.hosts && (!u.host || !s.hosts.includes(u.host))) {
     return false;

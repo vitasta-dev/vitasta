@@ -9,13 +9,18 @@
  * Measured on 55 public repos (13 Nov 2026): without this rule only 23% of loose model strings were real usages.
  */
 import { hostOfModel } from "../providers.js";
+import { nameMatcher } from "./names.js";
 import type { Node } from "./parser.js";
 
-const MODELISH = /model/i;
+const MODELISH = /model|(^|[_.-])llm([_-]?(name|id))?$|^llm(Name|Id)?$|deployment[_-]?name$|deploymentName$/i;
 /** Names that hold model IDs as data, not as the model the app uses */
-const NOT_A_SETTING = /hint|prefix|pattern|keyword|famil|pric|cost|limit|token|context|window|alias|retired|deprecat|replacement|legacy|_map$|map$|table|capabilit|label|placeholder|example|sample|demo|seed|display/i;
+const NOT_A_SETTING = nameMatcher(
+  /prefix|keyword|famil|pric|cost|limit|token|context|alias|retired|deprecat|replacement|legacy|_map$|map$|capabilit|placeholder/i,
+  // whole words only: ClaudeModel holds "demo" and StableModel "table", and both are settings
+  ["hint", "pattern", "window", "table", "label", "example", "sample", "demo", "seed", "display"],
+);
 /** A map from model ID to a display name is for showing results, not a picker: MODEL_NAMES, DISPLAY_NAMES */
-const DISPLAY_MAP = /names$|_names|display|pretty|title|label/i;
+const DISPLAY_MAP = /names$|_names|display|pretty|title|label|readable|friendly|human/i;
 /** Collections named for a capability are lookup sets, not the models the app uses: NO_SAMPLING_MODELS, REASONING_MODELS */
 const CAPABILITY_LIST = /sampling|temperature|reasoning|vision|thinking|(^|_)no_|unsupported|without|feature|cache|tool|json|stream/i;
 /** Keys inside a model registry entry: MODELS = [{ name: "gpt-4o-mini", … }] */
@@ -25,6 +30,23 @@ const GENERATION_CALL = /(^|\.)(generate|complete|completion|chat|ask|call|invok
 const NOT_GENERATION = /token|encod|count|tiktoken|price|cost/i;
 /** Calls whose first argument is a model ID: Vercel AI SDK providers, LangChain, Google GenerativeModel, getModel(...) */
 const FACTORY = /(^|\.)(anthropic|openai|google|gemini|vertex|bedrock|azure|mistral|xai|groq|createModel|getModel|model|languageModel|GenerativeModel|getGenerativeModel|ChatOpenAI|ChatAnthropic|ChatGoogleGenerativeAI|ChatVertexAI|ChatBedrock(Converse)?)$/;
+
+/** A string literal naming a flag or key: '--judge-model' → judge-model, "MODEL" → MODEL; anything else → "" */
+function flagName(n: Node | null | undefined): string {
+  if (!n || !/^(string|string_literal|template_string)$/.test(n.type)) return "";
+  const t = n.text.replace(/^[a-zA-Z]{0,2}["'`]+|["'`]+$/g, "");
+  return /^-{0,2}[\w.-]{1,60}$/.test(t) ? t.replace(/^-+/, "") : "";
+}
+
+/**
+ * The default of a model-named flag, key or option given as the next argument: getArg('--model', 'claude-…'),
+ * config.get("judge_model", "gpt-4o"), getOrDefault("model", "…"), options.option('model', { default: '…' }).
+ */
+function namedDefault(args: Node, n: Node): boolean {
+  const items = args.namedChildren.filter((x): x is Node => !!x && x.type !== "comment");
+  if (items.length < 2 || items[1].id !== n.id) return false;
+  return isSettingName(flagName(items[0]));
+}
 
 export function isSettingName(name: string): boolean {
   const last = name.split(/[.\[\]'"]/).filter(Boolean).pop() ?? name;
@@ -114,6 +136,9 @@ export function jsSettingKind(s: Node): SettingKind | undefined {
       return kindOf(p.childForFieldName("value")?.id === n.id && isSettingName(p.childForFieldName("name")?.text ?? ""), "setting");
     case "pair": {
       const isValue = p.childForFieldName("value")?.id === n.id;
+      if (isValue && optionObjectDefault(n)) return "setting";
+      // const model: Model<"…"> = { id: "gpt-5.1-codex", … }, { model: { id: "…" } }: the id of a model object
+      if (isValue && /^["']?(id|model_?id|modelId|name)["']?$/.test(p.childForFieldName("key")?.text ?? "") && p.parent?.type === "object" && isModelObject(p.parent)) return "setting";
       if (isValue && isSettingName(p.childForFieldName("key")?.text ?? "")) {
         // { model: "gpt-4o", label: "GPT 4o" } inside a list is a picker entry (a "name" alone may be an agent config)
         const obj = p.parent;
@@ -142,7 +167,7 @@ export function jsSettingKind(s: Node): SettingKind | undefined {
     case "arguments": {
       const call = p.parent;
       const callee = call?.childForFieldName(call.type === "new_expression" ? "constructor" : "function")?.text ?? "";
-      return kindOf((p.namedChildren[0]?.id === n.id && isFactoryCall(callee)) || isGenerationCall(callee), "setting");
+      return kindOf((p.namedChildren[0]?.id === n.id && isFactoryCall(callee)) || isGenerationCall(callee) || namedDefault(p, n) || schemaDefault(call, callee), "setting");
     }
     case "array":
       return kindOf(listOwnerIsSetting(p, JS_WRAPPERS, ["variable_declarator", "pair", "assignment_expression"], ownerName, true), "listed");
@@ -180,8 +205,16 @@ export function pySettingKind(s: Node): SettingKind | undefined {
   switch (p.type) {
     case "assignment":
       return kindOf(p.childForFieldName("right")?.id === n.id && isSettingName(p.childForFieldName("left")?.text ?? ""), "setting");
-    case "keyword_argument":
-      return kindOf(isSettingName(p.childForFieldName("name")?.text ?? ""), "setting");
+    case "keyword_argument": {
+      const k = p.childForFieldName("name")?.text ?? "";
+      // add_argument("--model", default="gpt-4o"), click.option("--judge-model", default=…)
+      if (/^(default|default_value|initial|value)$/.test(k) && p.parent?.type === "argument_list") {
+        // qa_model: str = Field(default="gpt-4.1-mini"), judge_model = field(default="…")
+        const call = p.parent.parent;
+        return kindOf(isSettingName(flagName(p.parent.namedChildren[0])) || (!!call && pySettingTarget(call)), "setting");
+      }
+      return kindOf(isSettingName(k), "setting");
+    }
     case "default_parameter":
     case "typed_default_parameter":
       return kindOf(isSettingName(p.childForFieldName("name")?.text ?? ""), "setting");
@@ -206,6 +239,7 @@ export function pySettingKind(s: Node): SettingKind | undefined {
     case "argument_list": {
       const call = p.parent;
       const fn = call?.childForFieldName("function")?.text ?? "";
+      if (namedDefault(p, n)) return "setting";
       // os.environ.get("OPENAI_MODEL", "gpt-4o"): the default of a model-named setting
       if (/(^|\.)(get|getenv)$/.test(fn)) {
         const key = p.namedChildren[0];
@@ -241,7 +275,7 @@ export function javaSetting(s: Node): boolean {
   if (p.type === "argument_list") {
     const call = p.parent;
     const name = call?.childForFieldName("name")?.text ?? call?.childForFieldName("type")?.text ?? "";
-    return isSettingName(name) || isFactoryCall(name);
+    return isSettingName(name) || isFactoryCall(name) || namedDefault(p, s);
   }
   if (p.type === "array_initializer") return listOwnerIsSetting(p, [], ["variable_declarator"], (o) => o.childForFieldName("name")?.text ?? "");
   return false;
@@ -283,4 +317,44 @@ function enclosingFunctionName(n: Node): string | undefined {
     cur = cur.parent;
   }
   return undefined;
+}
+
+/** { default: "gpt-4o" } given right after a model-named flag: yargs.option('model', { default: … }) */
+export function optionObjectDefault(s: Node): boolean {
+  const pair = s.parent;
+  if (pair?.type !== "pair" || pair.childForFieldName("value")?.id !== s.id) return false;
+  if (!/^["']?(default|defaultValue|default_value|initial)["']?$/.test(pair.childForFieldName("key")?.text ?? "")) return false;
+  const obj = pair.parent;
+  const args = obj?.parent;
+  if (!obj || !args || args.type !== "arguments") return false;
+  const items = args.namedChildren.filter((x): x is Node => !!x);
+  const i = items.findIndex((x) => x.id === obj.id);
+  return i > 0 && isSettingName(flagName(items[i - 1]));
+}
+
+/** model: z.string().default("gpt-4o"), MODEL: Joi.string().default("…"): a schema default under a model-named key */
+function schemaDefault(call: Node | null, callee: string): boolean {
+  if (!call || !/\.(default|catch|withDefault)$/.test(callee)) return false;
+  let n: Node = call;
+  // the rest of the chain: .default("x").describe("…")
+  while (n.parent && (n.parent.type === "member_expression" || n.parent.type === "call_expression")) n = n.parent;
+  const p = n.parent;
+  if (p?.type === "pair") return p.childForFieldName("value")?.id === n.id && isSettingName(p.childForFieldName("key")?.text ?? "");
+  if (p?.type === "variable_declarator") return isSettingName(p.childForFieldName("name")?.text ?? "");
+  return false;
+}
+
+/** An object that is one model's description: assigned to a model-named variable or key, or typed as a Model */
+function isModelObject(obj: Node): boolean {
+  let n: Node = obj;
+  while (n.parent && ["parenthesized_expression", "as_expression", "satisfies_expression"].includes(n.parent.type)) n = n.parent;
+  const p = n.parent;
+  if (!p) return false;
+  if (p.type === "variable_declarator") {
+    const name = p.childForFieldName("name")?.text ?? "";
+    const type = p.childForFieldName("type")?.text ?? "";
+    return /^model$|Model$|^(default|selected|current|active)_?model$/i.test(name) || /:\s*(\w+\.)?(Model|LanguageModel|ChatModel)\b/.test(type);
+  }
+  if (p.type === "pair") return /^["']?(model|default_?model|defaultModel)["']?$/.test(p.childForFieldName("key")?.text ?? "");
+  return false;
 }

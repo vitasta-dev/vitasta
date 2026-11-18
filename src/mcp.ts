@@ -9,7 +9,7 @@
  *
  *   claude mcp add vitasta -- npx tsx /path/to/scanner/src/mcp.ts [--feed /path/to/feed/data]
  */
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -35,7 +35,9 @@ function repoPath(path: string): string {
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 
-const server = new McpServer({ name: "vitasta", version: "0.0.1" });
+// The package's own version (package.json sits one folder up from both src/ and dist/)
+const VERSION = (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
+const server = new McpServer({ name: "vitasta", version: VERSION });
 
 server.registerTool(
   "check_repo",

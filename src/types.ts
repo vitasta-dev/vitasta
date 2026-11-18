@@ -38,6 +38,13 @@ export interface Usage {
   snippet: string;
   /** Set when the model is served by a cloud host with its own retirement schedule (Azure, Bedrock, Vertex) */
   host?: "azure" | "bedrock" | "vertex";
+  /**
+   * Set when the model is reached through something that isn't the provider's API (GitHub Models, Copilot, the
+   * ChatGPT app, VS Code's model API): the provider's API retirement dates don't apply. A readable name.
+   */
+  via?: string;
+  /** Internal, during a scan: the module-level name of the model list this came from */
+  owner?: string;
   /** The usage is in a test, example or fixture file */
   inTest?: boolean;
   /** The client talks to a different server (an OpenAI-compatible relay or gateway); the provider's dates may not apply */

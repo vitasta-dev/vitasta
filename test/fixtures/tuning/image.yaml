@@ -1,0 +1,5 @@
+openai:
+  model: gpt-image-1
+azure:
+  enabled: false
+  deployment_name: "gpt-image-1"

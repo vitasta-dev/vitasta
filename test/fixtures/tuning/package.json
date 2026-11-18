@@ -1,0 +1,1 @@
+{ "name": "tuning-fixture", "private": true, "dependencies": { "openai": "^5.0.0", "@anthropic-ai/sdk": "^0.60.0" } }

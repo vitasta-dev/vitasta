@@ -17,7 +17,7 @@ const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", "out", ".nex
 const MAX_BYTES = 2_000_000;
 const TOKEN = /[A-Za-z0-9][\w.:@\/-]*[\w]/g;
 /** Data written by programs, not configuration: results, outputs, recorded responses, logs, test recordings */
-const DATA_PATH = /(^|\/|[-_.])(results?|outputs?|responses?|logs?|traces?|predictions?|cassettes?|recordings?|snapshots?|golden|expected|transcripts?|generations?|benchmarks?|leaderboards?|evals?|runs?)([-_.\/]|$)/i;
+const DATA_PATH = /(^|\/|[-_.])(results?|outputs?|responses?|logs?|traces?|predictions?|cassettes?|recordings?|snapshots?|golden|expected|transcripts?|generations?|benchmarks?|leaderboards?|evals?|runs?|corpus|corpora|holdout|datasets?)([-_.\/]|$)/i;
 /** Keys only an API response has: a "model" near two of these is a recorded response, not a setting */
 const RESPONSE_KEY = /["']?(choices|usage|created|system_fingerprint|finish_reason|stop_reason|prompt_tokens|completion_tokens|input_tokens|output_tokens|usage_metadata|usageMetadata|candidates|modelVersion|logprobs)["']?\s*:/;
 
@@ -42,6 +42,10 @@ export async function scanConfigAndNotebooks(root: string): Promise<Usage[]> {
       if ((await stat(full)).size > MAX_BYTES) continue;
       const text = await readFile(full, "utf8").catch(() => "");
       const rel = relative(root, full);
+      // A knowledge base of retirements (dates, replacements) names models as data
+      if (!isNotebook && retirementData(text)) continue;
+      // An OpenAPI/Swagger spec documents request shapes; its model values are examples
+      if (!isNotebook && /^\s*["']?(openapi|swagger)["']?\s*:\s*["']?\d/m.test(text.slice(0, 2000))) continue;
       // JSON/YAML a program wrote (results, recorded responses, logs) holds model names as data
       if (!isNotebook && !ENV_FILE.test(e.name) && DATA_PATH.test(rel.replace(/\.[^./]+$/, ""))) continue;
       out.push(...(isNotebook ? notebookRefs(rel, text) : textRefs(rel, text, "config")));
@@ -119,6 +123,22 @@ function notebookRefs(file: string, json: string): Usage[] {
     out.push(...textRefs(file, src, "notebook", 0, map));
   }
   return out;
+}
+
+/** Keys a record about a model's retirement has: retired_on, deprecation_date, shutdown, sunset, replacement */
+const RETIREMENT_KEY = /^\s*-?\s*["']?(retire\w*|deprecat\w*|shut_?down\w*|sunset\w*|end_of_life|eol(_date)?|replace(ment|d_by)\w*|successor|migrat(e|ion)_to)["']?\s*:/gim;
+
+/** A retirement key with a date: retired_on: 2026-01-05, "shutdown_date": "2026-06-30" */
+const DATED_RETIREMENT = /^\s*-?\s*["']?(retire\w*|deprecat\w*|shut_?down\w*|sunset\w*|end_of_life|eol(_date)?)["']?\s*:\s*["']?\d{4}-\d{2}(-\d{2})?/im;
+
+/**
+ * At least two different retirement keys, one of them dated: a file of retirement records, not a config. (A
+ * settings schema with "deprecated": true on some fields isn't one.)
+ */
+function retirementData(text: string): boolean {
+  if (!DATED_RETIREMENT.test(text)) return false;
+  const keys = new Set([...text.matchAll(RETIREMENT_KEY)].map((m) => m[1].toLowerCase().replace(/_?(date|on|at)$/, "").slice(0, 7)));
+  return keys.size >= 2;
 }
 
 /** Two or more response-only keys near this line: a recorded API response */

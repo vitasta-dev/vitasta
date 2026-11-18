@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.1.3 (18 Nov 2026)
+
+- **Where a model runs:** a model the code places on a platform gets that platform's dates. Read from an entry's
+  provider field, the key, call or branch it sits in (`azure:`, `VertexAIProvider(...)`, `elif api_type == "azure":`),
+  the file's path, or the only platform endpoint the file talks to. GitHub Models, Copilot, the ChatGPT app, VS Code's
+  model API and SAP AI Core aren't the provider's API, so its API dates don't apply there. Data:
+  `src/data/model-platforms.json`.
+- **Fewer false alarms:** model names used to test a name (prefix, substring and membership checks, also across files),
+  capability and compatibility tables, display labels, tokenizer names, schema and OpenAPI examples, retirement
+  knowledge bases, vendored copies under docs/, lint-rule fixtures, demo data files, bundled `.min.js`/`_bundle.js`.
+- **More real uses found:** defaults of model-named flags and options (`getArg('--model', …)`, argparse/click
+  `default=`, `z.string().default(…)`, `Field(default=…)`), `llm_name`/`deployment_name` settings, a model object's `id`,
+  model-info registries keyed by ID and constructor rows (`ModelInfo(id=…)`), model→provider maps, a model config picked
+  by ID, embedders.
+- **Compatibility data for model moves:** a reader for what a replacement model rejects or does differently (request
+  settings, response changes, and the first SDK version per release line that handles it), used by fix pull requests.
+  The SDK version a place in the repo runs with is read from its lockfile (npm, Bun, pnpm, Yarn, Poetry, uv, PDM,
+  Pipenv) or its manifest's range. Only files are read; nothing is installed.
+- Groq's `deepseek-r1-distill-llama-70b`-style IDs are recognised.
+- **Fix:** a name holding a short word inside another word (`ClaudeModel` holds "demo") is no longer taken for a
+  non-setting.
+- **Fix:** the MCP server reports the package's version (it said 0.0.1).
+
 ## 0.1.2 (17 Nov 2026)
 
 - **Large repos:** no more out-of-memory crash on repos with thousands of matching files (syntax trees are freed file
