@@ -1,8 +1,9 @@
 #!/usr/bin/env node
+import { todayUtc } from "./feed/dates.js";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, writeFile } from "node:fs/promises";
-import { annotationFor, evaluatePr, gitChangedLines, gitPrefix, workflowCommand } from "./check.js";
+import { annotationFor, baseConfig, evaluatePr, gitChangedLines, gitPrefix, workflowCommand } from "./check.js";
 import { renderCheckSummary } from "./report/check.js";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -68,7 +69,7 @@ async function main(): Promise<void> {
 
   const src = sourceFromArgs();
   // Local calendar date, not UTC, so "days left" matches the user's own clock
-  const today = arg("--today") ?? new Date().toLocaleDateString("en-CA");
+  const today = arg("--today") ?? todayUtc();
   const findings = await impactsFrom(src, map, today);
 
   const json = arg("--json");
@@ -86,9 +87,12 @@ async function check(target: string): Promise<void> {
     process.exit(2);
   }
   const root = resolve(target);
-  const map = await scanRepo(root, { onWarn: (m) => console.error(`warn: ${m}`) });
+  // The base branch's policy, as the App does: a PR's own .vitasta.yml can't loosen its own check
+  const policy = baseConfig(root, base);
+  console.error(policy.note);
+  const map = await scanRepo(root, { onWarn: (m) => console.error(`warn: ${m}`), configText: policy.text });
   const src = sourceFromArgs();
-  const today = arg("--today") ?? new Date().toLocaleDateString("en-CA");
+  const today = arg("--today") ?? todayUtc();
   const findings = await impactsFrom(src, map, today);
   const result = evaluatePr(findings, gitChangedLines(root, base), map.config?.policy.failOn, map.config?.policy.minConfidence);
 

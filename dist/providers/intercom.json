@@ -1,0 +1,26 @@
+{
+  "id": "intercom",
+  "hosts": [
+    "api.intercom.io",
+    "api.eu.intercom.io",
+    "api.au.intercom.io"
+  ],
+  "packages": {
+    "ts": [
+      "intercom-client"
+    ],
+    "js": [
+      "intercom-client"
+    ],
+    "py": [
+      "python-intercom"
+    ]
+  },
+  "versionHeaders": [
+    "Intercom-Version"
+  ],
+  "clientClasses": [
+    "Client",
+    "IntercomClient"
+  ]
+}

@@ -1,0 +1,155 @@
+{
+  "_comment": "Packages, CLIs and container images that send requests to model providers. 'providers' is a list of provider ids, or \"*\" for multi-provider frameworks and routers. A repo that depends on, imports, installs or runs one of these talks to those providers (see src/scan/evidence.ts). 'routerProviders' are provider ids whose API serves every provider's models (evidence for all).",
+  "packages": [
+    {
+      "names": [
+        "langchain",
+        "langchain-core",
+        "langchain-community",
+        "@langchain/core",
+        "langchain4j",
+        "dev.langchain4j",
+        "github.com/tmc/langchaingo",
+        "langchainrb"
+      ],
+      "providers": "*"
+    },
+    {
+      "names": [
+        "litellm",
+        "llama-index",
+        "llama_index",
+        "llamaindex",
+        "dspy",
+        "dspy-ai",
+        "instructor",
+        "pydantic-ai",
+        "pydantic_ai",
+        "crewai",
+        "autogen",
+        "autogen-agentchat",
+        "pyautogen",
+        "semantic-kernel",
+        "Microsoft.SemanticKernel",
+        "haystack-ai",
+        "smolagents",
+        "aisuite",
+        "mirascope",
+        "magentic",
+        "marvin",
+        "guidance",
+        "agno",
+        "phidata",
+        "letta",
+        "mem0ai",
+        "browser-use",
+        "camel-ai",
+        "ell-ai",
+        "openai-agents",
+        "strands-agents",
+        "google-adk",
+        "langgraph"
+      ],
+      "providers": "*"
+    },
+    {
+      "names": [
+        "ai",
+        "@ai-sdk/provider",
+        "@mastra/core",
+        "genkit",
+        "@genkit-ai/ai",
+        "token.js",
+        "@portkey-ai/gateway",
+        "portkey-ai",
+        "@openrouter/ai-sdk-provider",
+        "openrouter",
+        "ruby_llm",
+        "echolabs/prism",
+        "prism-php/prism",
+        "org.springframework.ai",
+        "spring-ai-core",
+        "spring-ai-client-chat",
+        "@llamaindex/core",
+        "@langchain/langgraph",
+        "@openai/agents"
+      ],
+      "providers": "*"
+    }
+  ],
+  "cli": [
+    {
+      "names": [
+        "ollama",
+        "litellm",
+        "vllm",
+        "open-webui",
+        "aider",
+        "aider-chat",
+        "llm"
+      ],
+      "providers": "*"
+    },
+    {
+      "names": [
+        "claude",
+        "@anthropic-ai/claude-code"
+      ],
+      "providers": [
+        "anthropic"
+      ]
+    },
+    {
+      "names": [
+        "codex",
+        "@openai/codex"
+      ],
+      "providers": [
+        "openai"
+      ]
+    },
+    {
+      "names": [
+        "gemini",
+        "@google/gemini-cli"
+      ],
+      "providers": [
+        "google"
+      ]
+    }
+  ],
+  "envKeys": {
+    "openai": [
+      "OPENAI_API_KEY",
+      "AZURE_OPENAI_API_KEY",
+      "AZURE_OPENAI_KEY"
+    ],
+    "anthropic": [
+      "ANTHROPIC_API_KEY",
+      "CLAUDE_API_KEY",
+      "ANTHROPIC_AUTH_TOKEN"
+    ],
+    "google": [
+      "GEMINI_API_KEY",
+      "GOOGLE_API_KEY",
+      "GOOGLE_GENAI_API_KEY",
+      "GOOGLE_GENERATIVE_AI_API_KEY",
+      "VERTEXAI_PROJECT"
+    ],
+    "cohere": [
+      "COHERE_API_KEY",
+      "CO_API_KEY"
+    ],
+    "perplexity": [
+      "PERPLEXITY_API_KEY",
+      "PPLX_API_KEY"
+    ],
+    "together": [
+      "TOGETHER_API_KEY",
+      "TOGETHERAI_API_KEY"
+    ]
+  },
+  "routerProviders": [
+    "openrouter"
+  ]
+}

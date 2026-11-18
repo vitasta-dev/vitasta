@@ -136,7 +136,7 @@ export function jsSettingKind(s: Node): SettingKind | undefined {
       return kindOf(p.childForFieldName("value")?.id === n.id && isSettingName(p.childForFieldName("name")?.text ?? ""), "setting");
     case "pair": {
       const isValue = p.childForFieldName("value")?.id === n.id;
-      if (isValue && optionObjectDefault(n)) return "setting";
+      if (isValue && (optionObjectDefault(n) || descriptorDefault(n))) return "setting";
       // const model: Model<"…"> = { id: "gpt-5.1-codex", … }, { model: { id: "…" } }: the id of a model object
       if (isValue && /^["']?(id|model_?id|modelId|name)["']?$/.test(p.childForFieldName("key")?.text ?? "") && p.parent?.type === "object" && isModelObject(p.parent)) return "setting";
       if (isValue && isSettingName(p.childForFieldName("key")?.text ?? "")) {
@@ -330,6 +330,38 @@ export function optionObjectDefault(s: Node): boolean {
   const items = args.namedChildren.filter((x): x is Node => !!x);
   const i = items.findIndex((x) => x.id === obj.id);
   return i > 0 && isSettingName(flagName(items[i - 1]));
+}
+
+const DEFAULT_KEY = /^["']?(default|defaultValue|default_value|initial|initialValue)["']?$/;
+
+/** The string value of `key: "…"` among an object's pairs */
+function pairValue(obj: Node, key: RegExp): string | undefined {
+  for (const c of obj.namedChildren) {
+    if (c?.type !== "pair" || !key.test(c.childForFieldName("key")?.text ?? "")) continue;
+    const v = c.childForFieldName("value");
+    if (v?.type === "string") return v.text.replace(/^["'`]|["'`]$/g, "");
+  }
+  return undefined;
+}
+
+/**
+ * A property descriptor's default, where the descriptor names a model setting: form and node definitions such as
+ * { name: "model", type: "options", default: "gpt-4o" } and resource locators
+ * { name: "model", type: "resourceLocator", default: { mode: "list", value: "claude-…" } }.
+ * The setting is named by the descriptor's `name` (or `id`/`key`), not by the `default` key itself.
+ */
+export function descriptorDefault(s: Node): boolean {
+  let pair = s.parent;
+  if (pair?.type !== "pair" || pair.childForFieldName("value")?.id !== s.id) return false;
+  // default: { mode: "list", value: "…" }: step out of the value object to the `default` pair
+  if (/^["']?(value|id)["']?$/.test(pair.childForFieldName("key")?.text ?? "") && pair.parent?.type === "object" && pair.parent.parent?.type === "pair") {
+    pair = pair.parent.parent;
+  }
+  if (!DEFAULT_KEY.test(pair.childForFieldName("key")?.text ?? "")) return false;
+  const descriptor = pair.parent;
+  if (descriptor?.type !== "object") return false;
+  const name = pairValue(descriptor, /^["']?(name|id|key)["']?$/);
+  return !!name && isSettingName(name);
 }
 
 /** model: z.string().default("gpt-4o"), MODEL: Joi.string().default("…"): a schema default under a model-named key */

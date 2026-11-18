@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.1.4 (18 Nov 2026)
+
+- **What a date means:** records can say what happens on the date: it stops working, it can stop any day from then
+  ("not sooner than"), calls silently move to another model, or the API becomes read-only. Reports, checks and the
+  MCP server word each one accordingly ("can be retired", "will silently change to …", "becomes read-only").
+- **Models whose versions retire on different dates** (Azure): with no version in the code, a model is "partly
+  retired" until its last version's date, with each version's date, instead of "retired" from the first one.
+- **Replacements that are themselves retiring:** "Move to" follows the provider's named replacement through the feed
+  to the first model that isn't retired or retiring soon on the same platform, and says why
+  ("gpt-5.6-terra (the provider names o4-mini, retired since 2026-10-23)").
+- **One clock:** dates are judged in UTC everywhere, and a model on its retirement day reads "retires today".
+- **Every finding says when it was last checked** against the provider's page.
+- **PR checks use the base branch's policy:** `vitasta check` (and the Action) read `.vitasta.yml` from the base
+  branch, so a pull request can't loosen its own check. Without one on the base, the default policy applies.
+- **GitHub Action:** runs the built scanner with production dependencies only (no build tools in your CI), and
+  `actions/setup-node` is pinned by commit. Use a release tag: `uses: vitasta-dev/vitasta@v0.1.4`.
+- **Lookup answers are checked field by field** (lengths, characters, dates; links only on providers' docs sites),
+  and MCP answers say they are data, not instructions.
+- **MCP `model_status` sends only public model IDs** (a fine-tune by its base model; deployment names never) and
+  prints the same lookup notice as the CLI.
+- **More model settings found:** a property descriptor's default for a model setting, including resource locators
+  (`{ name: "model", default: { mode: "list", value: "…" } }`).
+- Dependencies: `yaml` 2.9.1 and `zod` 4.6.7 (security fixes).
+
 ## 0.1.3 (18 Nov 2026)
 
 - **Where a model runs:** a model the code places on a platform gets that platform's dates. Read from an entry's

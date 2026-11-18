@@ -1,0 +1,43 @@
+{
+  "id": "googleads",
+  "hosts": [
+    "googleads.googleapis.com"
+  ],
+  "packages": {
+    "py": [
+      "google-ads",
+      "google.ads.googleads"
+    ],
+    "ts": [
+      "google-ads-api",
+      "google-ads-node"
+    ],
+    "js": [
+      "google-ads-api",
+      "google-ads-node"
+    ],
+    "java": [
+      "com.google.api-ads:google-ads"
+    ],
+    "rb": [
+      "google-ads-googleads"
+    ],
+    "php": [
+      "googleads/google-ads-php"
+    ],
+    "cs": [
+      "Google.Ads.GoogleAds"
+    ]
+  },
+  "clientClasses": [
+    "GoogleAdsClient",
+    "GoogleAdsApi"
+  ],
+  "versionKeys": [
+    "version"
+  ],
+  "urlVersion": "/(v\\d+)/",
+  "keywords": [
+    "googleads"
+  ]
+}

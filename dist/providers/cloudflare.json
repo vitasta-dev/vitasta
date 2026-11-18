@@ -1,0 +1,24 @@
+{
+  "id": "cloudflare",
+  "hosts": [
+    "api.cloudflare.com"
+  ],
+  "packages": {
+    "ts": [
+      "cloudflare"
+    ],
+    "js": [
+      "cloudflare"
+    ],
+    "py": [
+      "cloudflare"
+    ],
+    "go": [
+      "github.com/cloudflare/cloudflare-go"
+    ]
+  },
+  "clientClasses": [
+    "AsyncCloudflare",
+    "Cloudflare"
+  ]
+}

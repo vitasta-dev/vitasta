@@ -122,6 +122,20 @@ export interface ChangeRecord {
   effective: string;
   /** The date is the earliest possible shutdown ("not sooner than"), not a firm one */
   earliest?: boolean;
+  /**
+   * What happens on the date. Unset: it stops working ("shutdown"), or `earliest` above.
+   *   auto-route: calls keep working but the provider sends them to another model (`routesTo`), with no change on
+   *               the user's side, so behaviour, cost or output can change silently
+   *   read-only:  existing data stays readable; creating or changing it stops (the listed operations fail)
+   */
+  dateKind?: "shutdown" | "earliest" | "auto-route" | "read-only";
+  /** auto-route: the model calls go to from the date on */
+  routesTo?: string;
+  /**
+   * A model whose versions retire on different dates (Azure): each version's date. `effective` is the next one.
+   * Code rarely says which version a deployment runs, so until the last date it's "some versions retired", not "broken".
+   */
+  modelVersions?: { version: string; effective: string; earliest?: boolean }[];
   /** Found by comparing published API specs, not yet confirmed by a changelog or deprecation notice */
   unconfirmed?: boolean;
   /** New in the feed and not yet checked by a person. Reported as a note; never fails a PR check. */
@@ -129,12 +143,16 @@ export interface ChangeRecord {
   /** How the break is triggered: on the date, or only when you upgrade the API version / SDK */
   trigger: "date" | "upgrade";
   replacement?: string;
+  /** Set on a copy when Vitasta follows the named replacement to another model (it was itself retiring) */
+  namedReplacement?: string;
   guide?: string;
   sources: { url: string; note?: string; checked?: string }[];
 }
 
 export interface Finding {
   change: ChangeRecord;
+  /** What to move to, resolved through the feed (the named replacement may itself be retiring); see feed/replacement.ts */
+  moveTo?: import("./feed/replacement.js").MoveTo;
   usage: Usage;
   /** Negative = already past the effective date */
   daysLeft: number;

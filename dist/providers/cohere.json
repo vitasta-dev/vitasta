@@ -1,0 +1,43 @@
+{
+  "id": "cohere",
+  "hosts": [
+    "api.cohere.com",
+    "api.cohere.ai"
+  ],
+  "packages": {
+    "ts": [
+      "cohere-ai"
+    ],
+    "js": [
+      "cohere-ai"
+    ],
+    "py": [
+      "cohere"
+    ],
+    "java": [
+      "com.cohere:cohere-java"
+    ],
+    "go": [
+      "github.com/cohere-ai/cohere-go"
+    ]
+  },
+  "clientClasses": [
+    "AsyncClient",
+    "AsyncClientV2",
+    "Client",
+    "ClientV2",
+    "CohereClient",
+    "CohereClientV2"
+  ],
+  "modelPattern": "^(command(-r|-a|-light|-nightly|-r-plus)?(-[a-z0-9.]+)*|embed-(english|multilingual|v)[a-z0-9.-]*|rerank-(english|multilingual|v)[a-z0-9.-]*|c4ai-aya-[a-z0-9.-]+)$",
+  "sdkOps": {
+    "chat": "POST /v2/chat",
+    "chatStream": "POST /v2/chat",
+    "chat_stream": "POST /v2/chat",
+    "embed": "POST /v2/embed",
+    "rerank": "POST /v2/rerank",
+    "classify": "POST /v1/classify",
+    "generate": "POST /v1/generate",
+    "summarize": "POST /v1/summarize"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "zoom",
+  "hosts": [
+    "api.zoom.us"
+  ],
+  "packages": {
+    "ts": [
+      "@zoom/rivet"
+    ],
+    "js": [
+      "@zoom/rivet"
+    ]
+  }
+}

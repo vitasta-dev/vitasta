@@ -1,3 +1,5 @@
+import { statusOf } from "./dates.js";
+import { resolveReplacement } from "./replacement.js";
 import { readdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -117,15 +119,11 @@ export function findImpacts(map: ApiMap, feedIn: ChangeRecord[], today: string):
       const key = `${change.id}|${u.file}|${u.line}|${u.model ? normalizeModel(u.model) : u.op ?? u.apiVersion ?? ""}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      const daysLeft = daysBetween(today, change.effective);
-      // An "earliest possible" date that has passed means it can stop any day, not that it already has
-      const status: Finding["status"] =
-        change.trigger === "upgrade"
-          ? "on-upgrade"
-          : daysLeft <= 0
-            ? change.earliest ? "urgent" : "broken"
-            : daysLeft <= policy.urgentDays ? "urgent" : "upcoming";
-      findings.push({ change, usage: u, daysLeft, status });
+      // Past an "earliest" date it can stop any day; past an auto-route date it works on another model; some versions
+      // gone and others not means "check your version", not broken (src/feed/dates.ts)
+      const { status, daysLeft } = statusOf(change, today, policy.urgentDays);
+      const moveTo = resolveReplacement(change, feed, today);
+      findings.push({ change, usage: u, daysLeft, status, ...(moveTo ? { moveTo } : {}) });
     }
   }
   const rank = { broken: 0, urgent: 1, upcoming: 2, "on-upgrade": 3 };

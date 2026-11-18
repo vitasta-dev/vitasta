@@ -1,0 +1,232 @@
+{
+  "_comment": "Platforms that serve a provider's models under their own rules. 'host' platforms (Azure, Vertex, Bedrock) have their own retirement records in the feed; 'via' platforms (GitHub Models, Copilot, the ChatGPT app backend, VS Code's model API) aren't the provider's API, so the provider's API dates don't apply. names: values a provider/platform field, a key or a path segment can have. markers: text only code for that platform has. Matching is on whole tokens, case-insensitive.",
+  "platforms": [
+    {
+      "id": "azure",
+      "host": "azure",
+      "names": [
+        "azure",
+        "azure-openai",
+        "azure_openai",
+        "azureopenai",
+        "azure-ai",
+        "azure_ai",
+        "azure-openai-responses",
+        "azure-foundry",
+        "azureai"
+      ],
+      "markers": [
+        "openai.azure.com",
+        "services.ai.azure.com",
+        "cognitiveservices.azure.com",
+        "AzureOpenAI",
+        "AzureChatOpenAI",
+        "azure_deployment",
+        "azureDeployment",
+        "AZURE_OPENAI_"
+      ],
+      "providers": [
+        "openai",
+        "mistral",
+        "xai",
+        "deepseek",
+        "cohere",
+        "meta",
+        "microsoft"
+      ]
+    },
+    {
+      "id": "vertex",
+      "host": "vertex",
+      "names": [
+        "vertex",
+        "vertexai",
+        "vertex-ai",
+        "vertex_ai",
+        "google-vertex",
+        "googlevertex",
+        "google_vertex",
+        "vertex-anthropic",
+        "google-vertex-anthropic"
+      ],
+      "markers": [
+        "aiplatform.googleapis.com",
+        "vertexai=True",
+        "vertexai: true",
+        "vertexai=true",
+        "ChatVertexAI",
+        "GOOGLE_GENAI_USE_VERTEXAI"
+      ],
+      "fileMarkers": [
+        "vertexai=True",
+        "vertexai: true",
+        "vertexai=true",
+        "GOOGLE_GENAI_USE_VERTEXAI=True",
+        "GOOGLE_GENAI_USE_VERTEXAI=true",
+        "import vertexai",
+        "from vertexai",
+        "vertexai.init(",
+        "from google.cloud import aiplatform"
+      ],
+      "providers": [
+        "google",
+        "anthropic",
+        "mistral",
+        "meta"
+      ]
+    },
+    {
+      "id": "bedrock",
+      "host": "bedrock",
+      "names": [
+        "bedrock",
+        "amazon-bedrock",
+        "aws-bedrock",
+        "bedrock-converse",
+        "amazon_bedrock",
+        "aws_bedrock"
+      ],
+      "markers": [
+        "bedrock-runtime",
+        "BedrockRuntime",
+        "ChatBedrock"
+      ],
+      "providers": [
+        "anthropic",
+        "mistral",
+        "cohere",
+        "meta",
+        "deepseek",
+        "openai",
+        "amazon"
+      ]
+    },
+    {
+      "id": "github-models",
+      "via": "GitHub Models",
+      "names": [
+        "github",
+        "github-models",
+        "github_models",
+        "githubmodels"
+      ],
+      "markers": [
+        "models.inference.ai.azure.com",
+        "models.github.ai"
+      ],
+      "providers": [
+        "openai",
+        "mistral",
+        "meta",
+        "deepseek",
+        "xai",
+        "cohere",
+        "microsoft"
+      ]
+    },
+    {
+      "id": "copilot",
+      "via": "GitHub Copilot",
+      "names": [
+        "copilot",
+        "github-copilot",
+        "github_copilot",
+        "githubcopilot"
+      ],
+      "markers": [
+        "api.githubcopilot.com",
+        "githubcopilot.com"
+      ],
+      "providers": [
+        "openai",
+        "anthropic",
+        "google",
+        "xai"
+      ]
+    },
+    {
+      "id": "chatgpt",
+      "via": "the ChatGPT app",
+      "names": [
+        "chatgpt-oauth",
+        "chatgpt-account",
+        "chatgpt_oauth"
+      ],
+      "markers": [
+        "chatgpt.com/backend-api"
+      ],
+      "providers": [
+        "openai"
+      ]
+    },
+    {
+      "id": "vscode-lm",
+      "via": "VS Code's language model API",
+      "names": [
+        "vscode-lm",
+        "vscode-llm",
+        "vscode_lm",
+        "vscodelm",
+        "vscode"
+      ],
+      "markers": [
+        "vscode.lm.selectChatModels",
+        "vscode.lm."
+      ],
+      "providers": [
+        "openai",
+        "anthropic",
+        "google",
+        "xai"
+      ]
+    },
+    {
+      "id": "sap-ai-core",
+      "via": "SAP AI Core",
+      "names": [
+        "sap-ai-core",
+        "sap_ai_core",
+        "aicore",
+        "ai-core",
+        "sap-aicore"
+      ],
+      "markers": [],
+      "providers": [
+        "openai",
+        "anthropic",
+        "google",
+        "mistral",
+        "meta",
+        "amazon",
+        "cohere"
+      ],
+      "fileMarkers": [
+        "com.sap.ai.sdk",
+        "@sap-ai-sdk/",
+        "sap-ai-sdk-gen",
+        "gen_ai_hub"
+      ]
+    }
+  ],
+  "_pathNames": "Path segments that on their own say the file is for that platform (a generic word like 'github' or 'vscode' isn't enough in a path)",
+  "pathNames": [
+    "azure",
+    "azure-openai",
+    "azure_openai",
+    "azureopenai",
+    "vertex",
+    "vertexai",
+    "vertex-ai",
+    "vertex_ai",
+    "bedrock",
+    "copilot",
+    "github-copilot",
+    "githubcopilot",
+    "github-models",
+    "vscode-lm",
+    "vscode-llm",
+    "chatgpt-oauth"
+  ],
+  "_fileMarkers": "Text that, alone in a file (and with none of the provider's own API host), puts every model in it on that platform: genai.Client(vertexai=True)",
+  "_providers": "Whose models each platform serves; a platform is only applied to a model of one of these providers"
+}

@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0        # needed to diff against the base branch
-      - uses: vitasta-dev/vitasta@main   # no tagged release yet
+      - uses: vitasta-dev/vitasta@v0.1.4   # a release tag: it carries the built scanner
 ```
 
 What it does on each pull request:

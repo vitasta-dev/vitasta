@@ -1,0 +1,26 @@
+{
+  "id": "perplexity",
+  "hosts": [
+    "api.perplexity.ai"
+  ],
+  "packages": {
+    "ts": [
+      "@perplexity-ai/perplexity_ai"
+    ],
+    "js": [
+      "@perplexity-ai/perplexity_ai"
+    ],
+    "py": [
+      "perplexityai"
+    ]
+  },
+  "clientClasses": [
+    "Perplexity",
+    "AsyncPerplexity"
+  ],
+  "modelPattern": "^sonar(-(pro|reasoning|reasoning-pro|deep-research))?$",
+  "sdkOps": {
+    "chat.completions.create": "POST /chat/completions",
+    "search.create": "POST /search"
+  }
+}

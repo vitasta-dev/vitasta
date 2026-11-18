@@ -172,10 +172,16 @@ const isDate = (s: unknown) => {
 };
 const SELECTOR_FIELDS = ["models", "ops", "params", "sdkCalls", "hosts", "versions"] as const;
 
-export async function loadRepoConfig(root: string): Promise<RepoConfig> {
+export const CONFIG_FILES = [".vitasta.yml", ".vitasta.yaml", ".github/vitasta.yml"];
+
+/**
+ * The repo's .vitasta.yml. `fromText` replaces reading the working tree: a PR check passes the base branch's file
+ * (or null for none), so a PR can't change the policy its own check runs under (review B14).
+ */
+export async function loadRepoConfig(root: string, fromText?: string | null): Promise<RepoConfig> {
   const cfg: RepoConfig = { ignore: [], providers: [], changes: [], policy: { ...DEFAULT_POLICY }, warnings: [] };
-  let text: string | undefined;
-  for (const name of [".vitasta.yml", ".vitasta.yaml", ".github/vitasta.yml"]) {
+  let text: string | undefined = fromText ?? undefined;
+  for (const name of fromText !== undefined ? [] : CONFIG_FILES) {
     // Never follow a symlink, at any level (.github itself could be one): it could point outside the repo, and the
     // file's text can end up in warnings
     const st = await lstat(join(root, name)).catch(() => undefined);

@@ -109,8 +109,8 @@ const VENDORED = /(^|\/)(docs?|references?|resources|archive|examples?|samples?|
 /** More model values than this in one JSON file means it holds data, not settings */
 const DATA_FILE_MODELS = 25;
 
-export async function scanRepo(root: string, opts: { onWarn?: (msg: string) => void } = {}): Promise<ApiMap> {
-  const config = await loadRepoConfig(root);
+export async function scanRepo(root: string, opts: { onWarn?: (msg: string) => void; configText?: string | null } = {}): Promise<ApiMap> {
+  const config = await loadRepoConfig(root, opts.configText);
   for (const w of config.warnings) (opts.onWarn ?? (() => {}))(w);
   // The repo's own APIs apply to this scan only
   const map = await withProviders(config.providers, () => scanWithConfig(root, config, opts));

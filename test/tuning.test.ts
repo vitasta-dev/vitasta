@@ -76,4 +76,8 @@ describe("defaults of model-named flags and options", () => {
   it("YAML: a model under the provider's own block counts; an Azure deployment name is on Azure", async () => {
     expect(await refs("image.yaml")).toEqual(["2 gpt-image-1", "5 gpt-image-1 @azure"]);
   });
+
+  it("a property descriptor's default for a model setting, including a resource locator's { mode, value }", async () => {
+    expect(await refs("nodeProperties.ts")).toEqual(["7 claude-sonnet-4-5-20250929", "9 claude-3-5-haiku-20241022"]);
+  });
 });

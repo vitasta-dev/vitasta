@@ -21,14 +21,18 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-node@v4
+    # Pinned by full commit, not a movable tag (v4.4.0)
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
       with:
         node-version: "22"
 
+    # The built scanner (dist/) with production dependencies only: no build tools or test runners in your CI
     - name: Install Vitasta scanner
       shell: bash
       working-directory: ${{ github.action_path }}
-      run: npm ci --ignore-scripts --no-audit --no-fund
+      run: |
+        [ -f dist/cli.js ] || { echo "::error::This ref of the Vitasta action has no built scanner (dist/). Use a release tag such as vitasta-dev/vitasta@v0.1.4."; exit 1; }
+        npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
     # Inputs go through env vars, never straight into the script, so they can't inject shell commands.
     - name: Check this change
@@ -41,5 +45,5 @@ runs:
       run: |
         base="${VITASTA_BASE:-origin/${PR_BASE_REF:-main}}"
         cd "$GITHUB_WORKSPACE"
-        npx --prefix "$GITHUB_ACTION_PATH" tsx "$GITHUB_ACTION_PATH/src/cli.ts" check "$VITASTA_PATH" \
+        node "$GITHUB_ACTION_PATH/dist/cli.js" check "$VITASTA_PATH" \
           --base "$base" ${VITASTA_FEED:+--feed "$GITHUB_WORKSPACE/$VITASTA_FEED"} --github

@@ -78,8 +78,8 @@ describe("host-specific schedules", () => {
 
   it("applies each host's own dates and never the provider's to hosted models", () => {
     expect(ids()).toEqual([
-      "bedrock-37@aws/converse.py:8:broken",
-      "bedrock-37@lab/config.py:3:broken",
+      "bedrock-37@aws/converse.py:8:urgent",
+      "bedrock-37@lab/config.py:3:urgent",
       "bedrock@aws/invoke.ts:7:broken",
       "bedrock@lab/config.py:2:broken",
       "bedrock@lab/models.yml:3:broken",

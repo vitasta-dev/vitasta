@@ -1,0 +1,28 @@
+{
+  "id": "googlemaps",
+  "hosts": [
+    "maps.googleapis.com",
+    "routes.googleapis.com",
+    "places.googleapis.com",
+    "addressvalidation.googleapis.com"
+  ],
+  "packages": {
+    "ts": [
+      "@googlemaps/google-maps-services-js",
+      "@googlemaps/js-api-loader",
+      "@googlemaps/routing",
+      "@googlemaps/places"
+    ],
+    "js": [
+      "@googlemaps/google-maps-services-js",
+      "@googlemaps/js-api-loader",
+      "@googlemaps/routing",
+      "@googlemaps/places"
+    ],
+    "py": [
+      "googlemaps",
+      "google-maps-routing",
+      "google-maps-places"
+    ]
+  }
+}

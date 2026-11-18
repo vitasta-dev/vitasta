@@ -73,9 +73,10 @@ repo's scan and are removed before the next job starts.
 
 ## Permissions the App asks for
 
-`contents: write` (fix PR branches only, `vitasta/*`, never the default branch or a human's commits),
-`pull_requests: write`, `checks: write`, `issues: write`, `metadata: read`. Turn fix PRs off with `FIX_PRS=off`
-and the App only needs read access to contents.
+`contents: write`, `pull_requests: write`, `checks: write`, `issues: write`, `metadata: read`. GitHub can't limit
+`contents: write` to some branches; the limit is the App's own behaviour: it writes only `vitasta/*` fix branches,
+never the default branch, and never a branch a person has committed to. There is no per-repository switch for fix
+pull requests yet; to stop them, uninstall the App. (`FIX_PRS=off` is a setting on Vitasta's own server.)
 
 ## Reporting a vulnerability
 

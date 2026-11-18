@@ -1,3 +1,6 @@
+import { CONFIG_FILES } from "./config.js";
+import { checkedOf, todayOf, verbOf, whenOf, whereOf } from "./feed/dates.js";
+const upper = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 import { execFileSync } from "node:child_process";
 import type { Finding } from "./types.js";
 
@@ -76,6 +79,29 @@ export function gitChangedLines(repo: string, base: string): ChangedLines {
 }
 
 /** The scanned folder's path inside its git repo ("" at the top, "packages/api/" in a monorepo). */
+/**
+ * The .vitasta.yml a PR check should use: the base branch's, never the PR's own (a PR could set failOn: [] and pass
+ * its own check). `text` null = use the default policy; `note` says which was used, for the log.
+ */
+export function baseConfig(repo: string, base: string): { text: string | null; note: string } {
+  if (base.startsWith("-") || /\s/.test(base)) throw new Error(`not a git ref: ${base}`);
+  const git = (...args: string[]) => execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 1024 * 1024 });
+  try {
+    git("rev-parse", "--verify", "--quiet", `${base}^{commit}`);
+  } catch {
+    return { text: null, note: `Policy: couldn't read ${base}, so the default policy is used (never this branch's own .vitasta.yml).` };
+  }
+  const prefix = gitPrefix(repo);
+  for (const name of CONFIG_FILES) {
+    try {
+      return { text: git("show", `${base}:${prefix}${name}`), note: `Policy: from ${base}'s ${name} (this branch's own copy doesn't count for its check).` };
+    } catch {
+      /* not at the base: try the next name */
+    }
+  }
+  return { text: null, note: `Policy: ${base} has no .vitasta.yml, so the default policy is used.` };
+}
+
 export function gitPrefix(repo: string): string {
   return execFileSync("git", ["-C", repo, "rev-parse", "--show-prefix"], { encoding: "utf8" }).trim();
 }
@@ -137,26 +163,23 @@ export interface Annotation {
 export function annotationFor(f: Finding, introduced: boolean, failOn?: Finding["status"][], minConfidence?: Finding["usage"]["confidence"]): Annotation {
   const u = f.usage;
   const blocking = introduced && canBlock(f, failOn, minConfidence);
-  const when =
-    f.status === "on-upgrade"
-      ? `breaks when you move to API version ${f.change.effective}`
-      : f.daysLeft <= 0
-        ? f.change.earliest ? `can be shut down any day (earliest date ${f.change.effective} has passed)` : `retired since ${f.change.effective}`
-        : `${f.change.earliest ? "not before" : "on"} ${f.change.effective} (${f.daysLeft} days)`;
+  const today = todayOf(f);
+  const when = f.status === "on-upgrade" ? `breaks when you move to API version ${f.change.effective}` : upper(whenOf(f.change, today));
   return {
     path: u.file,
     start_line: u.line,
     end_line: u.line,
     annotation_level: blocking ? "failure" : f.status === "broken" || f.status === "urgent" ? "warning" : "notice",
     title: (f.change.type === "model_retirement" && u.model
-      ? `${u.model}${u.host ? ` on ${{ bedrock: "Amazon Bedrock", vertex: "Vertex AI", azure: "Azure" }[u.host]}` : ""} ${f.change.earliest ? "can be retired" : f.daysLeft <= 0 ? "is retired" : "is being retired"}`
+      ? `${whereOf(u.model, u.host)} ${verbOf(f.change, today)}`
       : `${u.model ? `${u.model}: ` : ""}${f.change.title}`
     ).slice(0, 255),
     message: [
       `${when}.`,
       f.change.pending ? "Newly announced; not yet double-checked by Vitasta, so it won't fail this check." : "",
       f.change.unconfirmed ? "Inferred from the provider's API spec; not yet announced, so it won't fail this check." : "",
-      f.change.replacement ? `Move to: ${f.change.replacement}.` : "", f.change.guide ? `Guide: ${f.change.guide}` : ""]
+      f.moveTo ? `Move to: ${f.moveTo.text}.` : "", f.change.guide ? `Guide: ${f.change.guide}` : "",
+      checkedOf(f.change) ? `(Checked ${checkedOf(f.change)}.)` : ""]
       .filter(Boolean)
       .join(" "),
   };

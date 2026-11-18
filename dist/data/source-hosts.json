@@ -1,0 +1,9 @@
+{
+  "_comment": "Domains whose https pages the lookup service may cite as a guide or source (a host matches itself and its subdomains). A URL elsewhere is dropped from a lookup answer; the record stays. Add a provider's docs domain here when the feed starts citing it.",
+  "domains": [
+    "anthropic.com", "claude.com", "openai.com", "google.com", "microsoft.com", "aws.amazon.com", "amazon.com",
+    "github.com", "githubusercontent.com", "mistral.ai", "groq.com", "cohere.com", "together.ai", "cloudflare.com",
+    "facebook.com", "shopify.dev", "stripe.com", "twilio.com", "x.ai", "deepseek.com", "perplexity.ai", "slack.com",
+    "hubspot.com", "notion.com", "intercom.com", "sendgrid.com", "paypal.com", "zoom.us", "vitasta.dev"
+  ]
+}

@@ -28,8 +28,15 @@ export interface Reject {
 
 export interface Behaviour {
   note: string;
-  /** A regex over the file's text for code this likely breaks, e.g. content\[0\]\.text */
+  /** A regex over the file's text for code this likely breaks, e.g. content\[0\]\.text. Only lines in the same function
+   * as a moved call are cited */
   pattern?: string;
+  /** Show only for moved calls that pass this setting (e.g. max_tokens), citing its value and line */
+  whenParam?: string;
+  /** Show only when a moved call's messages end with this role (e.g. "assistant" for prefill), or can't be told */
+  whenLastRole?: string;
+  /** Where this note is written, when it isn't the entry's own source */
+  source?: string;
 }
 
 /**

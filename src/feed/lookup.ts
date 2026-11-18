@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 /**
  * Where change records come from: a local feed folder, or the Vitasta lookup service.
  *
@@ -108,6 +109,8 @@ export interface FeedSource {
   remote: boolean;
   forUsages(usages: Usage[]): Promise<ChangeRecord[]>;
   forModel(model: string): Promise<ChangeRecord[]>;
+  /** Records for several models at once (one request per 50 for the lookup service) */
+  forModels(models: string[]): Promise<ChangeRecord[]>;
   upcoming(provider: string | undefined, withinDays: number, today: string): Promise<ChangeRecord[]>;
 }
 
@@ -122,6 +125,10 @@ export function localSource(dir: string): FeedSource {
     remote: false,
     forUsages: async () => feed(),
     forModel: async (m) => recordsForModel(await feed(), m),
+    forModels: async (ms) => {
+      const f = await feed();
+      return [...new Map(ms.flatMap((m) => recordsForModel(f, m)).map((r) => [r.id, r])).values()];
+    },
     upcoming: async (p, d, t) => upcomingRecords(await feed(), p, d, t),
   };
 }
@@ -171,19 +178,109 @@ export function remoteSource(url = LOOKUP_URL, fetchImpl: typeof fetch = fetch):
       for (let i = 0; i < q.length; i += LIMITS.usages) out.push(...((await post({ usages: q.slice(i, i + LIMITS.usages) })).records ?? []));
       return [...new Map(out.map((c) => [c.id, c])).values()];
     },
-    forModel: async (model) => (await post({ models: [model.slice(0, LIMITS.field)] })).records ?? [],
+    forModels: async (models) => {
+      const ids = [...new Set(models.map(publicModel).filter((m): m is string => !!m))];
+      const out: ChangeRecord[] = [];
+      for (let i = 0; i < ids.length; i += LIMITS.models) out.push(...((await post({ models: ids.slice(i, i + LIMITS.models) })).records ?? []));
+      return [...new Map(out.map((c) => [c.id, c])).values()];
+    },
+    forModel: async (model) => {
+      const id = publicModel(model);
+      return id ? ((await post({ models: [id.slice(0, LIMITS.field)] })).records ?? []) : [];
+    },
     upcoming: async (provider, withinDays) => (await post({ upcoming: { provider, withinDays } })).upcoming ?? [],
   };
 }
 
-/** Keep only records with the shape matching needs; anything else from the network is dropped. */
-function validRecords(v: unknown): ChangeRecord[] {
+/**
+ * Records from the network are data from another machine: every field is checked, capped and cleaned before it is
+ * matched or printed, so a hostile or broken lookup host (or a VITASTA_API override) can't put instructions, odd
+ * characters or links to other sites into a report or a coding agent's context (review A5). A record without a
+ * valid id, provider, type, date or selector is dropped; a bad optional field is dropped from the record.
+ */
+export function validRecords(v: unknown): ChangeRecord[] {
   if (!Array.isArray(v)) return [];
-  return v.filter(
-    (r): r is ChangeRecord =>
-      !!r && typeof r === "object" && typeof r.id === "string" && typeof r.provider === "string" && typeof r.type === "string" &&
-      typeof r.effective === "string" && typeof r.title === "string" && !!r.selector && typeof r.selector === "object" && Array.isArray(r.sources),
-  );
+  return v.slice(0, 2000).map(cleanRecord).filter((r): r is ChangeRecord => !!r);
+}
+
+const TYPES = new Set(["model_retirement", "model_deprecation", "endpoint_shutdown", "param_removed", "sdk_api_removed", "version_sunset"]);
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const MODEL = /^[\w.:@/*+-]{1,200}$/;
+const OP = /^[A-Z*]{1,7} \/[\w{}.\/:*~-]{0,300}$/;
+const WORD = /^[\w.:@/*+-]{1,120}$/;
+
+/** No control characters or bidirectional overrides, trimmed and capped */
+function cleanText(v: unknown, max: number): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const s = v.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, " ").replace(/\s+/g, " ").trim();
+  return s ? s.slice(0, max) : undefined;
+}
+
+const SOURCE_DOMAINS: string[] = JSON.parse(readFileSync(new URL("../data/source-hosts.json", import.meta.url), "utf8")).domains;
+
+/** An https link on a provider's docs domain, or nothing */
+export function cleanUrl(v: unknown): string | undefined {
+  if (typeof v !== "string" || v.length > 500) return undefined;
+  try {
+    const u = new URL(v);
+    if (u.protocol !== "https:" || u.username || u.password) return undefined;
+    const host = u.hostname.toLowerCase();
+    return SOURCE_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`)) ? u.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const list = (v: unknown, re: RegExp): string[] | undefined => {
+  if (!Array.isArray(v)) return undefined;
+  const out = v.filter((x): x is string => typeof x === "string" && re.test(x)).slice(0, 200);
+  return out.length ? out : undefined;
+};
+
+function cleanRecord(raw: unknown): ChangeRecord | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const s = (r.selector ?? {}) as Record<string, unknown>;
+  const id = typeof r.id === "string" && /^[\w.:@/+-]{1,200}$/.test(r.id) ? r.id : undefined;
+  const provider = typeof r.provider === "string" && /^[a-z0-9-]{1,40}$/.test(r.provider) ? r.provider : undefined;
+  const type = typeof r.type === "string" && TYPES.has(r.type) ? (r.type as ChangeRecord["type"]) : undefined;
+  const effective = typeof r.effective === "string" && DATE.test(r.effective) ? r.effective : undefined;
+  const title = cleanText(r.title, 300);
+  const selector: ChangeRecord["selector"] = {
+    models: list(s.models, MODEL),
+    ops: list(s.ops, OP),
+    params: list(s.params, WORD),
+    sdkCalls: list(s.sdkCalls, WORD),
+    hosts: list(s.hosts, /^(bedrock|vertex|azure)$/) as ChangeRecord["selector"]["hosts"],
+    versions: list(s.versions, /^[\w.-]{1,40}$/),
+  };
+  for (const k of Object.keys(selector) as (keyof typeof selector)[]) if (!selector[k]) delete selector[k];
+  if (!id || !provider || !type || !effective || !title || !Object.keys(selector).length) return undefined;
+  const sources = (Array.isArray(r.sources) ? r.sources : []).slice(0, 10).flatMap((x) => {
+    const src = (x ?? {}) as Record<string, unknown>;
+    const url = cleanUrl(src.url);
+    return url ? [{ url, ...(cleanText(src.note, 300) ? { note: cleanText(src.note, 300) } : {}), ...(typeof src.checked === "string" && DATE.test(src.checked) ? { checked: src.checked } : {}) }] : [];
+  });
+  const kinds = ["shutdown", "earliest", "auto-route", "read-only"];
+  const versions = Array.isArray(r.modelVersions)
+    ? r.modelVersions.slice(0, 50).flatMap((x) => {
+        const v = (x ?? {}) as Record<string, unknown>;
+        return typeof v.version === "string" && /^[\w.-]{0,40}$/.test(v.version) && typeof v.effective === "string" && DATE.test(v.effective) ? [{ version: v.version, effective: v.effective, ...(v.earliest === true ? { earliest: true } : {}) }] : [];
+      })
+    : [];
+  return {
+    id, provider, type, title, selector, effective, sources,
+    trigger: r.trigger === "upgrade" ? "upgrade" : "date",
+    ...(typeof r.announced === "string" && DATE.test(r.announced) ? { announced: r.announced } : {}),
+    ...(r.earliest === true ? { earliest: true } : {}),
+    ...(r.unconfirmed === true ? { unconfirmed: true } : {}),
+    ...(r.pending === true ? { pending: true } : {}),
+    ...(typeof r.dateKind === "string" && kinds.includes(r.dateKind) ? { dateKind: r.dateKind as ChangeRecord["dateKind"] } : {}),
+    ...(typeof r.routesTo === "string" && MODEL.test(r.routesTo) ? { routesTo: r.routesTo } : {}),
+    ...(versions.length ? { modelVersions: versions } : {}),
+    ...(cleanText(r.replacement, 200) ? { replacement: cleanText(r.replacement, 200) } : {}),
+    ...(cleanUrl(r.guide) ? { guide: cleanUrl(r.guide) } : {}),
+  };
 }
 
 /** What the CLI and MCP server use: a local feed when one is given, the lookup service otherwise. */
@@ -199,5 +296,18 @@ export function lookupNotice(src: FeedSource): string | undefined {
 
 /** Findings for a scan, from any source. */
 export async function impactsFrom(src: FeedSource, map: ApiMap, today: string) {
-  return findImpacts(map, await src.forUsages(map.usages), today);
+  const feed = await src.forUsages(map.usages);
+  // The lookup service answers for the models in the code; the replacements' own records are needed too, to tell
+  // whether a named replacement is itself retiring (a few steps of the chain, one request each)
+  if (src.remote) {
+    const have = new Set(feed.map((r) => r.id));
+    const asked = new Set<string>();
+    for (let step = 0; step < 4; step++) {
+      const next = [...new Set(feed.map((r) => r.replacement?.trim()).filter((m): m is string => !!m && /^[\w.:@/+-]{1,200}$/.test(m) && !asked.has(m)))];
+      if (!next.length) break;
+      next.forEach((m) => asked.add(m));
+      for (const r of await src.forModels(next)) if (!have.has(r.id)) (have.add(r.id), feed.push(r));
+    }
+  }
+  return findImpacts(map, feed, today);
 }

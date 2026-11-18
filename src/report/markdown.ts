@@ -1,3 +1,4 @@
+import { checkedOf, dateKindOf, partlyRetired, todayOf, todayUtc, verbOf, whenOf } from "../feed/dates.js";
 import { code, fence, text, url } from "./escape.js";
 import type { ApiMap, Finding } from "../types.js";
 
@@ -8,15 +9,20 @@ const STATUS: Record<Finding["status"], string> = {
   "on-upgrade": "🔵 Breaks when you upgrade",
 };
 
+/** The heading's status: "due within 30 days" isn't true of a date that has passed but didn't break anything */
+function label(f: Finding): string {
+  const today = todayOf(f);
+  if (f.status !== "urgent" || f.daysLeft > 0) return STATUS[f.status];
+  if (partlyRetired(f.change, today)) return "🟠 Some versions retired";
+  const kind = dateKindOf(f.change);
+  if (kind === "earliest") return "🟠 Can stop any day";
+  if (kind === "auto-route") return "🟠 Now runs on another model";
+  if (f.daysLeft === 0) return "🟠 Retires today";
+  return STATUS[f.status];
+}
+
 function when(f: Finding): string {
-  if (f.status === "on-upgrade") return `when you move to the new API version (${f.change.effective})`;
-  if (f.change.earliest) {
-    return f.daysLeft <= 0
-      ? `any day now: the earliest shutdown date (${f.change.effective}) has passed`
-      : `not before ${f.change.effective} (${f.daysLeft} days left at the earliest)`;
-  }
-  if (f.daysLeft <= 0) return `since ${f.change.effective} (${-f.daysLeft} days ago)`;
-  return `on ${f.change.effective} (${f.daysLeft} days left)`;
+  return whenOf(f.change, todayOf(f));
 }
 
 interface Group {
@@ -48,7 +54,7 @@ export function groupFindings(findings: Finding[]): Group[] {
 function titleOf(f: Finding, where: string): string {
   const u = f.usage;
   return f.change.type === "model_retirement" && u.model
-    ? `${code(u.model)}${where} ${f.change.earliest ? "can be retired" : f.daysLeft <= 0 ? "is retired" : "is being retired"}`
+    ? `${code(u.model)}${where} ${verbOf(f.change, todayOf(f))}`
     : text(f.change.title);
 }
 
@@ -56,7 +62,7 @@ function titleOf(f: Finding, where: string): string {
 export function renderMarkdown(map: ApiMap, findings: Finding[], repoLabel: string, opts?: { after?: (f: Finding) => string | undefined }): string {
   const lines: string[] = [];
   lines.push(`# Vitasta impact report: ${repoLabel}`, "");
-  lines.push(`Scanned ${map.filesScanned} source files on ${new Date(map.scannedAt).toLocaleDateString("en-CA")}.`, "");
+  lines.push(`Scanned ${map.filesScanned} source files on ${todayUtc(new Date(map.scannedAt))}.`, "");
 
   // Test, example and fixture files are listed apart at the end: recorded data and mocks repeat model names, and
   // they never fail a check
@@ -78,7 +84,7 @@ export function renderMarkdown(map: ApiMap, findings: Finding[], repoLabel: stri
       const u = f.usage;
       const where = u.host ? ` on ${{ bedrock: "Amazon Bedrock", vertex: "Vertex AI", azure: "Azure" }[u.host]}` : "";
       const title = titleOf(f, where);
-      lines.push(`### ${STATUS[f.status]}: ${title}`);
+      lines.push(`### ${label(f)}: ${title}`);
       const shown = g.lines.slice(0, 8).join(", ");
       const more = g.lines.length > 8 ? ` and ${g.lines.length - 8} more` : "";
       const times = g.lines.length > 1 ? ` (${g.lines.length} places)` : "";
@@ -87,8 +93,10 @@ export function renderMarkdown(map: ApiMap, findings: Finding[], repoLabel: stri
       if (u.proxy) lines.push(`- **Note:** this client talks to ${code(u.proxy)}, not ${u.provider} directly. The date applies if that server forwards to ${u.provider}.`);
       if (f.change.pending) lines.push("- **Source:** newly announced and not yet double-checked by a person at Vitasta. Check the guide before acting.");
       if (f.change.unconfirmed) lines.push("- **Source:** found by comparing the provider's published API spec over time; not yet announced in a changelog. Worth checking before acting.");
-      if (f.change.replacement) lines.push(`- **Move to:** ${text(f.change.replacement)}`);
+      if (f.moveTo) lines.push(`- **Move to:** ${text(f.moveTo.text)}`);
       if (f.change.guide) lines.push(`- **Guide:** ${url(f.change.guide)}`);
+      const checked = checkedOf(f.change);
+      if (checked && f.change.sources[0]) lines.push(`- **Checked:** ${checked}, against ${url(f.change.sources[0].url)}`);
       lines.push(`- **Confidence:** ${g.confidence}`);
       if (u.listed) lines.push("- **Note:** offered in a model list, picker or type, not called here. It breaks for whoever picks it.");
       lines.push("", fence(u.snippet), "");
