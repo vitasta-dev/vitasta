@@ -12,11 +12,14 @@
  * Platforms and their names: src/data/model-platforms.json. Plain text scanning, any language.
  */
 import { createRequire } from "node:module";
-import { PROVIDERS, hostOfClass } from "../providers.js";
+import { PROVIDERS, hostOfClass, partnerProviders } from "../providers.js";
 import type { Usage } from "../types.js";
+import { linesOf } from "./parser.js";
 
 interface Platform { id: string; host?: "azure" | "vertex" | "bedrock"; via?: string; names: string[]; markers: string[]; fileMarkers?: string[]; providers: string[] }
 const DATA: { platforms: Platform[]; pathNames: string[] } = createRequire(import.meta.url)("../data/model-platforms.json");
+// A cloud platform also serves the partner vendors src/data/partner-models.json lists for it
+for (const p of DATA.platforms) if (p.host) p.providers = [...new Set([...p.providers, ...partnerProviders(p.host)])];
 
 const NAME = new Map<string, Platform>();
 for (const p of DATA.platforms) for (const n of p.names) NAME.set(n.toLowerCase(), p);
@@ -191,7 +194,7 @@ export function platformAt(src: string, rel: string, u: Usage, lineStarts: numbe
   }
   // 2) indentation blocks (YAML, Python): the block's fields, then the keys/branches above it
   if (indentLang) {
-    const lines = src.split("\n");
+    const lines = linesOf(src);
     const { block, heads } = indentBlocks(lines, u.line - 1);
     const f = fieldPlatform(block);
     if (f) return f;

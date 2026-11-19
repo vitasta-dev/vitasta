@@ -49,7 +49,17 @@ export function named(node) {
 export function lineOf(node) {
     return node.startPosition.row + 1;
 }
+let lastSource;
+let lastLines = [];
+/** The lines of a file, split once for all the usages in it (files are scanned one at a time) */
+export function linesOf(source) {
+    if (source !== lastSource) {
+        lastSource = source;
+        lastLines = source.split("\n");
+    }
+    return lastLines;
+}
 export function snippetOf(source, node) {
-    const line = source.split("\n")[node.startPosition.row] ?? "";
+    const line = linesOf(source)[node.startPosition.row] ?? "";
     return line.trim().slice(0, 200);
 }

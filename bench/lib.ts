@@ -91,6 +91,10 @@ export interface UsageRow {
   confidence: Usage["confidence"];
   thing: string;
   inTest: boolean;
+  /** What the place is for (src/scan/roles.ts); only "breaks" fails a check */
+  role?: string;
+  /** Under the rule before roles: reported outside tests and lists */
+  listed?: boolean;
 }
 
 export interface Candidate {
@@ -128,7 +132,7 @@ export async function scanForBench(repo: string, feed: ChangeRecord[], today: st
       const l = (await text(u.file)).slice(0, u.modelSpan.start).split("\n").length;
       if (l !== u.line) altKey = keyOf(repo, u.file, l, thing);
     }
-    return { key: keyOf(repo, u.file, u.line, thing), ...(altKey ? { altKey } : {}), repo, file: u.file, line: u.line, rule: ruleOf(u), provider: u.provider, kind: u.kind, confidence: u.confidence, thing, inTest: !!u.inTest };
+    return { key: keyOf(repo, u.file, u.line, thing), ...(altKey ? { altKey } : {}), repo, file: u.file, line: u.line, rule: ruleOf(u), provider: u.provider, kind: u.kind, confidence: u.confidence, thing, inTest: !!u.inTest, ...(u.role ? { role: u.role } : {}), ...(u.listed ? { listed: true } : {}) };
   };
   const rows = new Map<Usage, UsageRow>();
   for (const u of map.usages) rows.set(u, await rowOf(u));

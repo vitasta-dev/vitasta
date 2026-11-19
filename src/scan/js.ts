@@ -124,6 +124,8 @@ function modelIdObjects(ctx: FileCtx): Usage[] {
     out.push({
       provider: p.id, kind: "sdk", lang: ctx.lang, file: ctx.file, line: lineOf(owner ?? obj),
       op, sdkCall: cls || undefined, model, params: info.params,
+      // A Bedrock runtime command or a Bedrock class runs the model on Bedrock
+      ...(op || hostOfClass(cls) === "bedrock" ? { host: "bedrock" as const } : {}),
       paramSpans: spansOf(info).paramSpans, modelSpan: literalSpan(ctx, valueNode),
       confidence: op ? "certain" : "likely", snippet: snippetOf(ctx.source, owner ?? obj),
     });
@@ -564,7 +566,18 @@ function modelRefs(ctx: FileCtx): Usage[] {
     // Only model settings count: DEFAULT_MODEL = "…", { model: "…" }, MODELS = [...], anthropic("…")
     // A cloud-form ID (Vertex "@", Bedrock "anthropic.") counts anywhere except as a lookup-table key (prices, sizes)
     // A model in a recorded or mocked API response is output, and one in pricing or cost code is an estimate input
-    if (inRecordedResponse(s) || inCostContext(s) || inExampleOrTokenizer(s)) continue;
+    // Recorded output and price/cost tables are still reported, in their own roles (founder, 19 Nov: replacement
+    // in all files): recorded is info and never edited, a price table is a catalog entry the fix never renames
+    if (inExampleOrTokenizer(s)) continue;
+    const recordedOut = inRecordedResponse(s);
+    if (recordedOut || inCostContext(s)) {
+      out.push({
+        ...(recordedOut ? { recorded: true, reason: "recorded response" } : { listed: true, reason: "price or cost table" }), weak: true,
+        provider: ref.provider.id, kind: "model-ref", lang: ctx.lang, file: ctx.file, line: lineOf(s),
+        model: ref.model, confidence: "possible", snippet: snippetOf(ctx.source, s), host: ref.host ?? fileHost(ctx),
+      });
+      continue;
+    }
     const ownKind = jsSettingKind(s);
     // A model-named list inside a table of capabilities or prices (models: [...] in a compatibility matrix) is data
     const strict = (ownKind === "listed" && inDataTable(s) ? undefined : ownKind) ?? (alwaysCounts(ref.model) && !isPairKey(s, ["parenthesized_expression"]) && !inDataCollection(s) ? (inModelCollection(s, (k) => !!modelRef(k)) ? "listed" : "setting") : undefined);
@@ -574,6 +587,7 @@ function modelRefs(ctx: FileCtx): Usage[] {
     const editable = !ref.prefixed && (s.type === "string" || !named(s).some((c) => c.type === "template_substitution"));
     out.push({
       ...(kind === "listed" ? { listed: true, owner: collectionName(s) } : {}),
+      ...(kind === "setting" ? { setting: true } : {}),
       ...(strict ? {} : { weak: true }),
       provider: ref.provider.id, kind: "model-ref", lang: ctx.lang, file: ctx.file, line: lineOf(s),
       model: ref.model, confidence: "possible", snippet: snippetOf(ctx.source, s), host: ref.host ?? fileHost(ctx),

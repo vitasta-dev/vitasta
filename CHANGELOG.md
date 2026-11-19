@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.1.5 (19 Nov 2026)
+
+**Where a model is used decides what happens with it.** Every place now has a role:
+- **Live code, defaults, config:** the only places that fail a check.
+- **Examples and docs, including README code blocks and code samples in strings and docstrings:** shown and
+  annotated, never failing.
+- **Tests:** split into tests that set or check the model (a fix updates them) and tests that only store, show or look
+  it up.
+- **Model lists, catalogs, price tables, model-to-model maps:** never renamed.
+- **Recorded data (telemetry, recorded responses, saved runs):** information only.
+
+Nothing is silently dropped any more: price tables, recorded responses and lists the code only checks names
+against are reported in their roles.
+- **Reports** group places by role. A pull request's check annotates what it touches in live code and in examples.
+- **More model places found:**
+  - environment-variable defaults (`os.getenv("X", "gpt-4o")`, `process.env.X ?? "…"`);
+  - gateway prefixes (`mastra/openai/gpt-5-mini`);
+  - commander `.option(flags, description, default)`;
+  - form fields named "Model";
+  - framework model classes (`Claude(id=…)`, `OpenAIChat(id=…)`);
+  - destructured parameter defaults;
+  - provider/model routes in provider- or LLM-named constants;
+  - code blocks in Markdown and code samples in template strings and Python docstrings.
+- **Partner vendors' model IDs on Azure and Bedrock** are recognised by vendor family, from
+  `src/data/partner-models.json`. Examples: Llama, Phi, MAI, DeepSeek, Cohere, Mistral, Kimi and FLUX on Azure;
+  `<vendor>.<model>` IDs, with region prefixes, on Bedrock. Partner IDs count only where the code runs the model on
+  that platform.
+- **Fewer false alarms:** a router named only in a comment no longer turns provider routes into router IDs. Token and
+  size helpers' default models aren't uses.
+- **Security:**
+  - A repository's own `.vitasta.yml` patterns can't stall a scan: bounded repeats up to 32, a shared time budget
+    per scan, and V8's linear-time regex fallback.
+  - Scans of large or unusual files stay linear. Each scan has a cap on source size, and each manifest a 1 MB cap.
+  - No symlink is followed.
+- **Lookups and MCP:**
+  - The date lookup sends only IDs made of public model words, never deployment names, codenames or anything
+    secret-looking.
+  - The MCP server scans only inside the client's roots, `--root` or `VITASTA_MCP_ROOTS`, never `/` or the home
+    folder.
+  - MCP answers quote repository text as JSON strings.
+- **Output and redaction:**
+  - Report and annotation text drops control and bidirectional characters.
+  - About fifteen more secret formats are redacted in snippets.
+  - A repository's provider can't reuse a built-in provider's name.
+- Dev dependency: vitest 4.1.12 (npm audit clean).
+
 ## 0.1.4 (18 Nov 2026)
 
 - **What a date means:** records can say what happens on the date: it stops working, it can stop any day from then

@@ -8,7 +8,7 @@ import type { Change } from "../src/types.js";
 const scan = () => scanRepo(resolve(import.meta.dirname, "fixtures/tuning"));
 const refs = async (file: string) =>
   (await scan()).usages
-    .filter((u) => u.file === file && u.kind === "model-ref")
+    .filter((u) => u.file === file && u.kind === "model-ref" && !u.reason)
     .map((u) => `${u.line} ${u.model}${u.listed ? " (listed)" : ""}${u.host ? ` @${u.host}` : ""}${u.via ? ` via ${u.via}` : ""}`);
 
 describe("where a model runs, from the code around it", () => {

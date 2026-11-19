@@ -60,7 +60,19 @@ function isKey(s: Node): boolean {
 }
 
 /** The object/dict holding this string as a value looks like an API response: ≥2 response-only keys */
+/** v2: objects that are API output: ModelResponse(...), ChatCompletionChunk(...), new StreamChunk({...}), Delta(...) */
+const OUTPUT_CLASS = /(Response|Chunk|Completion|Delta|Choice|StreamEvent|Usage)s?$/;
+
 export function inRecordedResponse(s: Node): boolean {
+  // model="…" passed to an output object's constructor (a mocked response or stream chunk)
+  const arg = s.parent;
+  const holder = arg && /^(keyword_argument|pair)$/.test(arg.type) ? arg.parent : null;
+  const args = holder?.type === "argument_list" || holder?.type === "arguments" ? holder : holder?.type === "object" && holder.parent?.type === "arguments" ? holder.parent : null;
+  const call = args?.parent;
+  if (call && /call|new_expression/.test(call.type)) {
+    const callee = (call.childForFieldName("function") ?? call.childForFieldName("constructor"))?.text ?? "";
+    if (OUTPUT_CLASS.test(callee.split(/[.\s]/).pop() ?? "")) return true;
+  }
   let n: Node | null = s;
   for (let depth = 0; n && depth < 3; depth++) {
     const p: Node | null = n.parent;
@@ -425,7 +437,7 @@ export function collectionName(s: Node): string | undefined {
 /** Keys whose contents document or sample a value rather than set it: example(s), json_schema_extra, x-example */
 const EXAMPLE_KEY = /^["']?(examples?|json_schema_extra|schema_extra|x-?examples?|openapi_examples)["']?$/;
 /** Calls that only count tokens or look up an encoding for a model name (tiktoken), never send it */
-const TOKENIZER_CALL = /tiktoken|encoding_for_model|token_?counter|tokeni[sz]er|count_?tokens|num_?tokens|token_?count|chunk|truncat|encod(e|ing|er)\b|Tokeniz|TokenCounter|Encoding/i;
+const TOKENIZER_CALL = /tiktoken|encoding_for_model|token_?counter|tokeni[sz]er|count_?tokens|num_?tokens|token_?count|chunk|truncat|encod(e|ing|er)\b|Tokeniz|TokenCounter|Encoding|Token_?(Manager|Budget|Limit)|prompt_?size|context_?(size|window|length|limit)|max_?tokens_?for|model_?to_?(prompt|context|max)/i;
 
 /**
  * A model name that's documentation or tokenizer input, not a setting: inside an example(s)/json_schema_extra
@@ -443,7 +455,13 @@ export function inExampleOrTokenizer(s: Node): boolean {
     if (/^(function_definition|function_declaration|method_definition|arrow_function|method_declaration)$/.test(n.type)) {
       // def chunk_text(text, model_name="gpt-4o-mini"): a default of a token/chunk helper's parameter
       const inParams = s.startIndex < (n.childForFieldName("body")?.startIndex ?? 0);
-      const name = n.childForFieldName("name")?.text ?? (n.parent?.type === "variable_declarator" ? n.parent.childForFieldName("name")?.text ?? "" : "");
+      let name = n.childForFieldName("name")?.text ?? (n.parent?.type === "variable_declarator" ? n.parent.childForFieldName("name")?.text ?? "" : "");
+      // v2: a constructor's defaults belong to its class (class TokenManager { constructor(model = "gpt-3.5-turbo") })
+      if (/^(constructor|__init__)$/.test(name)) {
+        let c: Node | null = n.parent;
+        while (c && !/^(class_declaration|class_definition|class)$/.test(c.type)) c = c.parent;
+        name = c?.childForFieldName("name")?.text ?? name;
+      }
       return inParams && TOKENIZER_CALL.test(name);
     }
   }

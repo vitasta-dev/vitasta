@@ -1,17 +1,19 @@
 import { providerOfHost } from "../providers.js";
 import { redactSecrets } from "../redact.js";
 import { readFile } from "node:fs/promises";
-import { readFileSync, statSync } from "node:fs";
+import { lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ignored, loadRepoConfig } from "../config.js";
-import { PROVIDERS, hostOfModel, providersVersion, withProviders } from "../providers.js";
+import { PROVIDERS, hostOfModel, partnerOnlyHost, providersVersion, withProviders } from "../providers.js";
 import { analyzeGeneric } from "./generic.js";
 import { scanConfigAndNotebooks } from "./config.js";
-import { listManifests, listSourceFiles } from "./files.js";
+import { listDocFiles, listManifests, listSourceFiles } from "./files.js";
+import { markdownCode, pythonStringCode, templateCode } from "./embedded.js";
+import { assignRoles } from "./roles.js";
 import { analyzeJava } from "./java.js";
 import { analyzeJs, collectExports } from "./js.js";
 import { readSdkDependencies } from "./manifest.js";
-import { parse } from "./parser.js";
+import { linesOf, parse } from "./parser.js";
 import { urlVersionUsages } from "./urls.js";
 import { provenUse, repoEvidence } from "./evidence.js";
 import { placeOnPlatforms } from "./platform.js";
@@ -35,6 +37,41 @@ export function registerAnalyzer(lang, analyzer) {
 }
 /** Cheap skip for files that can't mention any provider: built from every registered provider, so new ones count. */
 let PREFILTER;
+/** Leading literal text of each top-level alternative of a model pattern, 4+ characters ("gpt-", "tts-1", "dall-e-") */
+export function literalPrefixes(re) {
+    const src = re.source.replace(/^\^\(?/, "").replace(/\)?\$$/, "");
+    const alts = [];
+    let depth = 0, cur = "";
+    for (let i = 0; i < src.length; i++) {
+        const c = src[i];
+        if (c === "\\") {
+            cur += c + (src[i + 1] ?? "");
+            i++;
+            continue;
+        }
+        if (c === "(" || c === "[")
+            depth++;
+        if (c === ")" || c === "]")
+            depth--;
+        if (c === "|" && depth === 0) {
+            alts.push(cur);
+            cur = "";
+            continue;
+        }
+        cur += c;
+    }
+    alts.push(cur);
+    const out = [];
+    for (const a of alts) {
+        const lit = /^[A-Za-z0-9-]*/.exec(a)[0];
+        // A literal followed by "?" isn't required: drop its last character
+        const head = a[lit.length] === "?" ? lit.slice(0, -1) : lit;
+        // With a dash or digit only: plain words (models, command) would let nearly every file through
+        if (head.length >= 4 && /[-\d]/.test(head))
+            out.push(head.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    }
+    return out;
+}
 function prefilter() {
     if (PREFILTER?.version === providersVersion)
         return PREFILTER.re;
@@ -50,6 +87,10 @@ function prefilter() {
             words.add(k);
         for (const r of p.resourceIds ?? [])
             words.add(r.pattern.source.replace(/^\^|\$$/g, ""));
+        // The literal start of each model-ID family in the provider's pattern (tts-1, whisper-1, dall-e-, text-embedding-):
+        // a file that only names such a model still gets looked at
+        for (const w of literalPrefixes(p.modelPattern))
+            words.add(w);
     }
     PREFILTER = { version: providersVersion, re: new RegExp([...words].join("|"), "i") };
     return PREFILTER.re;
@@ -96,6 +137,8 @@ const EVIDENCE_LINE = /^\s*(import|from|using|require|const|let|var|use)\b|requi
 const VENDORED = /(^|\/)(docs?|references?|resources|archive|examples?|samples?|other[^/]*)\/(.+\/)?[^/]+-(main|master)\//i;
 /** More model values than this in one JSON file means it holds data, not settings */
 const DATA_FILE_MODELS = 25;
+/** Source kept for one scan, in characters (about 100 MB) */
+const MAX_SOURCE_BYTES = 100_000_000;
 export async function scanRepo(root, opts = {}) {
     const config = await loadRepoConfig(root, opts.configText);
     for (const w of config.warnings)
@@ -105,15 +148,20 @@ export async function scanRepo(root, opts = {}) {
     return { ...map, config };
 }
 async function scanWithConfig(root, config, opts) {
-    const warn = opts.onWarn ?? (() => { });
+    // One clean line: file names and parser messages come from the repo, and stderr can carry Actions workflow commands
+    const warn = (msg) => (opts.onWarn ?? (() => { }))(msg.replace(/[\p{Cc}\p{Cf}\u2028\u2029]+/gu, " ").replace(/::/g, ": :").slice(0, 300));
     const [allFiles, manifests] = await Promise.all([listSourceFiles(root), listManifests(root)]);
     const files = allFiles.filter((f) => !ignored(config, f.rel));
     const sdks = await readSdkDependencies(root, manifests);
     // Only sources are kept for the whole scan. Each file's syntax tree lives just while that file is being looked at:
     // tree-sitter's memory is capped (about 2 GB), and holding every tree of a big repo at once overflows it.
+    // shifted: a virtual source whose characters moved (dedented docstring code): line numbers hold, offsets don't
     const sources = [];
     // From every file, only the lines that can show the repo uses a provider: imports, API key names, process calls
     const evidenceLines = [];
+    // At most this much source per scan: past it, files are left out with a warning, so memory stays bounded (F2)
+    let keptBytes = 0;
+    let cappedWarned = false;
     for (const f of files) {
         let source;
         try {
@@ -122,12 +170,43 @@ async function scanWithConfig(root, config, opts) {
         catch {
             continue;
         }
+        if (keptBytes + source.length > MAX_SOURCE_BYTES) {
+            if (!cappedWarned)
+                warn(`stopped reading source files after ${Math.round(MAX_SOURCE_BYTES / 1_000_000)} MB; the rest of the repo wasn't scanned`);
+            cappedWarned = true;
+            continue;
+        }
         const lines = source.split("\n").filter((l) => l.length < 400 && EVIDENCE_LINE.test(l));
         if (lines.length)
             evidenceLines.push(lines.join("\n"));
         // Cheap prefilter: skip files that can't possibly mention a provider
-        if (prefilter().test(source))
+        if (prefilter().test(source)) {
             sources.push({ rel: f.rel, abs: f.path, lang: f.lang, source });
+            keptBytes += source.length;
+            // Code samples held in template strings, scanned as documentation (src/scan/embedded.ts)
+            if (f.lang === "ts" || f.lang === "js")
+                for (const v of templateCode(source))
+                    if (prefilter().test(v.source))
+                        sources.push({ rel: f.rel, abs: f.path, lang: v.lang, source: v.source, doc: true });
+            if (f.lang === "py")
+                for (const v of pythonStringCode(source))
+                    if (prefilter().test(v.source))
+                        sources.push({ rel: f.rel, abs: f.path, lang: v.lang, source: v.source, doc: true, shifted: v.shifted });
+        }
+    }
+    // Code blocks in READMEs and docs, scanned as documentation
+    for (const d of await listDocFiles(root)) {
+        if (ignored(config, d.rel) || keptBytes > MAX_SOURCE_BYTES)
+            continue;
+        const md = await readFile(d.path, "utf8").catch(() => "");
+        if (!md.includes("```") && !md.includes("~~~"))
+            continue;
+        for (const v of markdownCode(md)) {
+            if (!prefilter().test(v.source))
+                continue;
+            sources.push({ rel: d.rel, abs: d.path, lang: v.lang, source: v.source, doc: true });
+            keptBytes += v.source.length;
+        }
     }
     /** Parse one file, run `use` on its tree, and always free the tree. A file that can't be parsed is skipped. */
     async function withTree(p, use) {
@@ -153,7 +232,7 @@ async function scanWithConfig(root, config, opts) {
     const exported = new Map();
     for (const p of sources) {
         const lang = p.lang;
-        if (lang === "ts" || lang === "js")
+        if ((lang === "ts" || lang === "js") && !p.doc)
             await withTree(p, (tree) => collectExports(p.rel, p.abs, lang, p.source, tree, exported));
     }
     const usages = [];
@@ -163,6 +242,15 @@ async function scanWithConfig(root, config, opts) {
             continue;
         await withTree(p, (tree) => {
             const found = withLines(analyze({ ...p, tree, exported }), p.source);
+            if (p.doc)
+                for (const u of found)
+                    u.doc = true;
+            // Offsets in a shifted source aren't the file's: no edit positions, so no fix can touch the wrong place
+            if (p.shifted)
+                for (const u of found) {
+                    delete u.modelSpan;
+                    delete u.paramSpans;
+                }
             usages.push(...found, ...resourceUsages(p.rel, p.lang, p.source, found), ...urlVersionUsages(tree, p.rel, p.lang, p.source, found));
         });
     }
@@ -199,20 +287,34 @@ async function scanWithConfig(root, config, opts) {
     // Lint-rule fixtures: code next to a rule file of the same name (semgrep: rule.yaml + rule.py) is test input
     markRuleFixtures(root, usages);
     // A model the code places on a platform (an entry's provider field, an azure: block, a Vertex branch, a Copilot file)
-    const byRel = new Map(sources.map((s) => [s.rel, s.source]));
+    const byRel = new Map(sources.filter((s) => !s.doc).map((s) => [s.rel, s.source]));
+    const extra = new Map();
     placeOnPlatforms(usages, (rel) => {
         if (byRel.has(rel))
             return byRel.get(rel);
         if (rel.endsWith(".ipynb"))
             return undefined;
-        try {
-            const p = join(root, rel);
-            return statSync(p).size <= 2_000_000 ? readFileSync(p, "utf8") : undefined;
+        // Read once per file (not per usage), never through a symlink, at most 2 MB (review F2/F3)
+        if (!extra.has(rel)) {
+            let text;
+            try {
+                const p = join(root, rel);
+                const st = lstatSync(p);
+                text = st.isFile() && st.size <= 2_000_000 ? readFileSync(p, "utf8") : undefined;
+            }
+            catch {
+                text = undefined;
+            }
+            extra.set(rel, text);
         }
-        catch {
-            return undefined;
-        }
+        return extra.get(rel);
     });
+    // A partner vendor's model known only from src/data/partner-models.json counts only where the code runs it on that
+    // platform: "Llama-3.3-70B-Instruct" through Azure is Azure's record; the same name for a local or other host isn't
+    usages.splice(0, usages.length, ...usages.filter((u) => {
+        const only = u.model ? partnerOnlyHost(u.model) : undefined;
+        return !only || u.host === only;
+    }));
     // Model IDs found only through a code shape (a model enum, list, per-provider map, model-shaped call) count when
     // the repo shows it really uses that provider: calls, dependencies, imports, a model CLI, or its API key
     let kept = usages;
@@ -223,13 +325,17 @@ async function scanWithConfig(root, config, opts) {
     // A model list the repo only ever tests names against (GEMINI_TTS_MODELS.includes(model), `m in VISION_MODELS`),
     // in any file, is a capability list, not models the app offers
     const checkedOnly = await onlyCheckedLists(kept, files.map((f) => f.path));
-    kept = kept.filter((u) => !(u.owner && checkedOnly.has(u.owner)));
+    // Reported as catalog entries, not dropped: the fix retires or lists them (founder, 19 Nov)
+    for (const u of kept)
+        if (u.owner && checkedOnly.has(u.owner))
+            Object.assign(u, { listed: true, reason: "a list the code only checks names against" });
     for (const u of kept) {
         delete u.weak;
         delete u.owner;
     }
     // Model names in a vendored copy of another project are that project's
     kept = kept.filter((u) => !(u.kind === "model-ref" && VENDORED.test(u.file)));
+    assignRoles(kept);
     return {
         root,
         scannedAt: new Date().toISOString(),
@@ -251,7 +357,9 @@ function markRuleFixtures(root, usages) {
             // rule.yaml next to rule.py, or rule-python.py next to rule.yaml
             for (const p of [".yaml", ".yml"].flatMap((ext) => [base + ext, base.replace(/-(python|py|javascript|js|typescript|ts|java|go|ruby|rb)$/, "") + ext]).map((f) => join(root, f))) {
                 try {
-                    if (statSync(p).size > 200_000)
+                    // lstat: a symlink (to /dev/zero, a FIFO, a file outside the repo) is never read (review F3)
+                    const st = lstatSync(p);
+                    if (!st.isFile() || st.size > 200_000)
                         continue;
                     const t = readFileSync(p, "utf8");
                     if (/^rules\s*:/m.test(t) && /\bpatterns?(-either|-inside|-not)?\s*:/.test(t))
@@ -322,12 +430,19 @@ function resourceUsages(file, lang, source, found) {
                 continue;
             const body = r.pattern.source.replace(/^\^|\$$/g, "");
             const lines = new Set();
+            const all = linesOf(source);
+            let at = 0;
+            let line = 1;
             for (const m of source.matchAll(new RegExp(`["'\`](${body})["'\`]`, "g"))) {
-                const line = source.slice(0, m.index).split("\n").length;
+                // Count lines from the last match on, not from the start of the file each time (review F2)
+                for (let k = at; k < m.index; k++)
+                    if (source.charCodeAt(k) === 10)
+                        line++;
+                at = m.index;
                 if (lines.has(line))
                     continue;
                 lines.add(line);
-                const text = source.split("\n")[line - 1] ?? "";
+                const text = all[line - 1] ?? "";
                 out.push({
                     provider: p.id, kind: "http", lang, file, line, op: r.op, ...(r.params ? { params: r.params } : {}),
                     confidence: "likely", snippet: text.trim().slice(0, 200), resource: r.what,

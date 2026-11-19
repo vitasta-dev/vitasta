@@ -1,5 +1,5 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -36,7 +36,8 @@ describe("MCP server", () => {
 
   it("checks a repo and names file, line, date and replacement", async () => {
     const out = text(await client.callTool({ name: "check_repo", arguments: { path: resolve(import.meta.dirname, "fixtures/sample") } }));
-    expect(out).toMatch(/\[urgent\] src\/chat\.ts:\d+/);
+    // Repo text (file names, models) comes as JSON strings: no line breaks or hidden characters from the repo
+    expect(out).toMatch(/\[urgent\] "src\/chat\.ts":\d+: "gpt-4o"/);
     expect(out).toContain("Move to: gpt-5");
   });
 
@@ -49,5 +50,14 @@ describe("MCP server", () => {
   it("refuses a path that isn't a directory", async () => {
     const r = await client.callTool({ name: "check_repo", arguments: { path: "/nonexistent/xyz" } });
     expect(r.isError).toBe(true);
+  });
+
+  it("scans only inside its allowed folders: not elsewhere, not / or the home folder (review F4)", async () => {
+    const outside = await mkdtemp(join(tmpdir(), "vitasta-outside-"));
+    for (const path of [outside, "/", homedir()]) {
+      const r = await client.callTool({ name: "check_repo", arguments: { path } });
+      expect(r.isError, path).toBe(true);
+      expect(text(r)).toMatch(/outside the folders|won't scan/);
+    }
   });
 });

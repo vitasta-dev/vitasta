@@ -6,7 +6,7 @@ import { scanRepo } from "../src/scan/index.js";
 describe("loose model strings: settings count, data and labels don't", () => {
   it("TS/JS", async () => {
     const map = await scanRepo(resolve(import.meta.dirname, "fixtures/noise"));
-    const ts = map.usages.filter((u) => u.file === "src/models.ts" && u.kind === "model-ref" && u.line < 15).map((u) => `${u.line}:${u.model}`);
+    const ts = map.usages.filter((u) => u.file === "src/models.ts" && u.kind === "model-ref" && u.line < 15 && !u.reason).map((u) => `${u.line}:${u.model}`);
     expect(ts).toEqual([
       "2:gpt-4-turbo",
       "3:claude-3-opus-20240229",

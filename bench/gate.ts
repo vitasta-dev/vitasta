@@ -37,13 +37,21 @@ const base: Baseline | undefined = JSON.parse(await readFile(BASELINE, "utf8").c
 const scans = await scanCorpus({ feedDir: arg("--feed", FEED)!, quiet: true });
 const ruleOfKey = new Map<string, string>();
 const usagesByRule: Record<string, number> = {};
+// What fails a check (founder, 19 Nov: only live code fails; everything else is reported in its role), and what
+// failed under the rule before roles (outside tests and lists), so one run shows both
+const failsNow = new Set<string>();
+const failedBefore = new Set<string>();
 for (const s of scans) {
   for (const u of s.usages) {
     usagesByRule[u.rule] = (usagesByRule[u.rule] ?? 0) + 1;
     ruleOfKey.set(u.key, u.rule);
     if (u.altKey && !ruleOfKey.has(u.altKey)) ruleOfKey.set(u.altKey, u.rule);
+    const keys = [u.key, ...(u.altKey ? [u.altKey] : [])];
+    if ((u.role ?? (!u.inTest && !u.listed ? "breaks" : "")) === "breaks") for (const k of keys) failsNow.add(k);
+    if (!u.inTest && !u.listed) for (const k of keys) failedBefore.add(k);
   }
 }
+const fail = { now: { tp: 0, fp: 0 }, before: { tp: 0, fp: 0 } };
 
 type Row = { tp: number; fp: number; fn: number; recallReal: number; recallFound: number };
 const per = new Map<string, Row>();
@@ -71,9 +79,11 @@ for (const [key, l] of labels) {
     else r.fn++;
     if (item?.kind === "recall") (r.recallReal++, reported && r.recallFound++);
   } else if (reported) r.fp++;
+  for (const [set, t] of [[failsNow, fail.now], [failedBefore, fail.before]] as const) if (set.has(key)) l.label === "real" ? t.tp++ : t.fp++;
   const was = base?.reported[key];
-  // Only a change counts: a known false positive the baseline already reported (or never saw) isn't new
-  if (l.label === "not" && reported && was === false) regressions.push(`NEW FALSE POSITIVE [${rule}] ${key}`);
+  // Only a change counts: a known false positive the baseline already reported (or never saw) isn't new. With roles,
+  // a "not a real use" that's reported but doesn't fail a check (a catalog, recorded or test entry) isn't one either
+  if (l.label === "not" && failsNow.has(key) && was === false) regressions.push(`NEW FALSE POSITIVE [${rule}] ${key}`);
   if (l.label === "real" && !reported && was === true) regressions.push(`LOST [${rule}] ${key}`);
 }
 
@@ -91,6 +101,8 @@ const lines = [
   `${labels.size} human labels; ${scans.length} repos scanned; feed frozen at bench/feed-snapshot.${skippedRepos.size ? ` Labels in ${skippedRepos.size} repos that couldn't be scanned this time were left out: ${[...skippedRepos].join(", ")}.` : ""}`,
   "",
   `**Overall:** precision ${pct(tot.tp, tot.tp + tot.fp)}, recall ${pct(tot.recallFound, tot.recallReal)} (recall sample only).`,
+  "",
+  `**Fails a check:** precision ${pct(fail.now.tp, fail.now.tp + fail.now.fp)} with roles (only live code), ${pct(fail.before.tp, fail.before.tp + fail.before.fp)} under the rule before roles (outside tests and lists). Real uses are counted as found in any role.`,
   "",
   "| Rule | Places | Labelled | Precision | Recall |",
   "|---|---|---|---|---|",

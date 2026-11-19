@@ -1,4 +1,5 @@
 import { CONFIG_FILES } from "./config.js";
+import { roleFor } from "./scan/roles.js";
 import { checkedOf, todayOf, verbOf, whenOf, whereOf } from "./feed/dates.js";
 const upper = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 import { execFileSync } from "node:child_process";
@@ -128,7 +129,8 @@ const CONFIDENCE = { certain: 0, likely: 1, possible: 2 } as const;
  * no person has checked yet (`pending`) or one inferred only from spec diffs (`unconfirmed`).
  */
 export function canBlock(f: Finding, failOn: Finding["status"][] = ["broken", "urgent"], minConfidence: Finding["usage"]["confidence"] = "possible"): boolean {
-  return !f.usage.inTest && !f.usage.listed && !f.change.pending && !f.change.unconfirmed && failOn.includes(f.status) && CONFIDENCE[f.usage.confidence] <= CONFIDENCE[minConfidence];
+  // Only live code fails a check: examples, docs, tests, catalogs and recorded data never do (src/scan/roles.ts)
+  return roleFor(f.usage) === "breaks" && !f.usage.inTest && !f.usage.doc && !f.usage.listed && !f.change.pending && !f.change.unconfirmed && failOn.includes(f.status) && CONFIDENCE[f.usage.confidence] <= CONFIDENCE[minConfidence];
 }
 
 export function evaluatePr(findings: Finding[], changed: ChangedLines, failOn: Finding["status"][] = ["broken", "urgent"], minConfidence: Finding["usage"]["confidence"] = "possible"): CheckResult {
@@ -136,9 +138,11 @@ export function evaluatePr(findings: Finding[], changed: ChangedLines, failOn: F
     const lines = changed.get(f.usage.file);
     return !!lines && (lines.has(f.usage.line) || !!f.usage.alsoLines?.some((l) => lines.has(l)));
   };
-  const introduced = findings.filter(touches);
-  // Known issues elsewhere leave out tests, examples and fixtures (recorded data); ones this PR touches are shown
-  const existing = findings.filter((f) => !introduced.includes(f) && !f.usage.inTest);
+  // What this PR touches, in live code or in code people copy (examples, docs): shown and annotated. Tests,
+  // catalogs and recorded data are in the tracking issue, not in a PR's check
+  const shown = (f: Finding) => ["breaks", "users-copy"].includes(roleFor(f.usage));
+  const introduced = findings.filter((f) => touches(f) && shown(f));
+  const existing = findings.filter((f) => !introduced.includes(f) && roleFor(f.usage) === "breaks");
   const blocking = introduced.filter((f) => canBlock(f, failOn, minConfidence));
   const conclusion = blocking.length ? "failure" : introduced.length || existing.length ? "neutral" : "success";
   const title = blocking.length

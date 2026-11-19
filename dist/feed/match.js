@@ -30,8 +30,10 @@ export async function loadFeed(dir) {
     }
     return out;
 }
-function matchModel(patterns, model) {
-    return patterns.some((p) => (p.endsWith("*") ? model.startsWith(p.slice(0, -1)) : model === p));
+/** Azure's model catalog names aren't case-sensitive ("DeepSeek-R1" and "deepseek-r1" are one model) */
+function matchModel(patterns, model, anyCase = false) {
+    const f = (x) => (anyCase ? x.toLowerCase() : x);
+    return patterns.some((p) => (p.endsWith("*") ? f(model).startsWith(f(p.slice(0, -1))) : f(model) === f(p)));
 }
 /**
  * "* /v1/threads" matches /v1/threads and everything under it. A path parameter in the pattern matches any segment,
@@ -75,7 +77,7 @@ export function matches(change, u) {
         return !!v && !!s.versions?.includes(v);
     }
     if (s.models) {
-        if (!u.model || !matchModel(s.models, normalizeModel(u.model)))
+        if (!u.model || !matchModel(s.models, normalizeModel(u.model), !!s.hosts?.includes("azure") && u.host === "azure"))
             return false;
     }
     if (s.ops) {

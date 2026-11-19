@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readManifest } from "./files.js";
 import { basename, relative } from "node:path";
 import { PROVIDERS } from "../providers.js";
 /** Read every manifest and return the provider SDKs the repo depends on (layer 0: proof of dependency). */
@@ -7,7 +7,9 @@ export async function readSdkDependencies(root, manifests) {
     for (const file of manifests) {
         let text;
         try {
-            text = await readFile(file, "utf8");
+            text = await readManifest(file);
+            if (!text)
+                continue;
         }
         catch {
             continue;

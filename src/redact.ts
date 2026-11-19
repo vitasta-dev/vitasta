@@ -24,6 +24,20 @@ const TOKEN_PATTERNS: RegExp[] = [
   /\bAccountKey=[A-Za-z0-9+/=]{20,}/g, // Azure storage connection string
   /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g,
   /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g, // JWT
+  // Added after the 18 Nov review (F11)
+  /\bpplx-[A-Za-z0-9]{20,}/g, // Perplexity
+  /\bSG\.[\w-]{16,}\.[\w-]{16,}/g, // SendGrid
+  /\bxapp-\d-[A-Za-z0-9-]{20,}/g, // Slack app-level token
+  /hooks\.slack\.com\/services\/[\w/]+/g, // Slack incoming webhook
+  /\bntn_\w{20,}/g, // Notion
+  /\bsecret_\w{30,}/g, // Notion (older)
+  /\bpat-(?:na|eu)\d-[0-9a-f-]{36}/g, // HubSpot
+  /\br8_\w{20,}/g, // Replicate
+  /\bGOCSPX-[\w-]{20,}/g, // Google OAuth client secret
+  /\bfw_\w{20,}/g, // Fireworks
+  /\bnpm_[A-Za-z0-9]{30,}/g, // npm
+  // A long random literal handed straight to a client or credential: Cohere("…"), AzureKeyCredential("…")
+  /(?<=\b\w*(?:Client|Credential|Key|Token)\(\s*["'`])[A-Za-z0-9+/=_-]{24,}(?=["'`])/g,
 ];
 
 /** Authorization headers and basic-auth in URLs */
@@ -33,7 +47,7 @@ const AUTH_PATTERNS: [RegExp, string][] = [
 ];
 
 /** password = "…", api_key: '…', "clientSecret": "…" */
-const SECRET_ASSIGN = /(\b[\w-]*(?:secret|passw(?:or)?d|api[_-]?key|apikey|access[_-]?key|auth[_-]?token|private[_-]?key|credential)[\w-]*["']?\s*[:=]\s*)(["'`])([^"'`\s]{6,})\2/gi;
+const SECRET_ASSIGN = /(\b[\w-]*(?:secret|passw(?:or)?d|api[_-]?key|apikey|access[_-]?key|auth[_-]?token|access[_-]?token|api[_-]?token|\btoken|private[_-]?key|credential)[\w-]*["']?\]?\s*[:=]\s*[bBrRuUfF]?)(["'`])([^"'`\n]{6,200})\2/gi;
 
 function mask(s: string): string {
   return `${s.slice(0, Math.min(6, Math.floor(s.length / 4)))}…[redacted]`;

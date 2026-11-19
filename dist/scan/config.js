@@ -85,7 +85,7 @@ function textRefs(file, text, lang, lineOffset = 0, lineMap) {
             if (!kind)
                 continue;
             out.push({
-                ...(kind === "listed" ? { listed: true } : {}),
+                ...(kind === "listed" ? { listed: true } : {}), ...(kind === "setting" ? { setting: true } : {}),
                 ...(strict ? {} : { weak: true }),
                 provider: ref.provider.id, kind: "model-ref", lang, file,
                 line: lineMap ? lineMap[i] : i + 1 + lineOffset,
@@ -183,14 +183,15 @@ function inModelBlock(lines, i, routed) {
         if (k && isSettingName(k))
             settingKey = true;
     };
-    for (let j = i; j >= 0 && sameBlock(lines[j]); j--)
+    // Within 200 lines either way: enough to tell a list of models, and linear on very long lists (review F2)
+    for (let j = i; j >= Math.max(0, i - 200) && sameBlock(lines[j]); j--)
         look(lines[j]);
-    for (let j = i + 1; j < lines.length && sameBlock(lines[j]); j++)
+    for (let j = i + 1; j < Math.min(lines.length, i + 201) && sameBlock(lines[j]); j++)
         look(lines[j]);
     // An object with its own model key ({model: x, name: y}) is one settings object, not a map of models
     if (settingKey && !/^\s*-/.test(line))
         return false;
-    for (let j = i - 1; j >= 0; j--) {
+    for (let j = i - 1; j >= Math.max(0, i - 2000); j--) {
         const l = lines[j];
         if (l.trim() && /^\s*/.exec(l)[0].length < indent) {
             owner = /["']?([\w.\-]+)["']?\s*[:=[{]/.exec(l)?.[1] ?? "";

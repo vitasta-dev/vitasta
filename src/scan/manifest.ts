@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { readManifest } from "./files.js";
 import { basename, relative } from "node:path";
 import { PROVIDERS } from "../providers.js";
 import type { Lang, SdkDependency } from "../types.js";
@@ -9,7 +10,8 @@ export async function readSdkDependencies(root: string, manifests: string[]): Pr
   for (const file of manifests) {
     let text: string;
     try {
-      text = await readFile(file, "utf8");
+      text = await readManifest(file);
+      if (!text) continue;
     } catch {
       continue;
     }

@@ -58,8 +58,19 @@ export function lineOf(node: Node): number {
   return node.startPosition.row + 1;
 }
 
+let lastSource: string | undefined;
+let lastLines: string[] = [];
+/** The lines of a file, split once for all the usages in it (files are scanned one at a time) */
+export function linesOf(source: string): string[] {
+  if (source !== lastSource) {
+    lastSource = source;
+    lastLines = source.split("\n");
+  }
+  return lastLines;
+}
+
 export function snippetOf(source: string, node: Node): string {
-  const line = source.split("\n")[node.startPosition.row] ?? "";
+  const line = linesOf(source)[node.startPosition.row] ?? "";
   return line.trim().slice(0, 200);
 }
 

@@ -47,6 +47,16 @@ export interface Usage {
   owner?: string;
   /** The usage is in a test, example or fixture file */
   inTest?: boolean;
+  /** Found in documentation: a Markdown code block or a code sample held in a string. Reported, never fails a PR */
+  doc?: boolean;
+  /** What this place is for (src/scan/roles.ts): decides how it's reported, whether it fails a check, what a fix does */
+  role?: "breaks" | "users-copy" | "test-asserts" | "test-data" | "catalog" | "recorded";
+  /** Describes a call that already happened (telemetry, a recorded response): reported as info, never edited */
+  recorded?: boolean;
+  /** Why a place that isn't a use is reported anyway (a price table, a recorded response, a list only checked against) */
+  reason?: string;
+  /** Found as a model setting (model=…, a default, an option), not only as a string in data */
+  setting?: boolean;
   /** The client talks to a different server (an OpenAI-compatible relay or gateway); the provider's dates may not apply */
   proxy?: string;
   /** The SDK used when it belongs to another provider (OpenAI SDK calling Groq's compatible endpoint) */

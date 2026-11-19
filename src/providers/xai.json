@@ -8,7 +8,7 @@
       "xai-sdk"
     ]
   },
-  "modelPattern": "^grok-[0-9][a-z0-9.-]*$",
+  "modelPattern": "^grok-([0-9]|code-)[a-z0-9.-]*$",
   "clientClasses": [
     "AsyncClient",
     "Client"

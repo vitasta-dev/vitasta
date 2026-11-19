@@ -12,6 +12,7 @@
  */
 import { createRequire } from "node:module";
 import { readFile, readdir, stat } from "node:fs/promises";
+import { readManifest } from "./files.js";
 import { basename, join } from "node:path";
 import { PROVIDERS } from "../providers.js";
 const DATA = createRequire(import.meta.url)("../data/model-routers.json");
@@ -55,10 +56,16 @@ async function evidenceTexts(root) {
 /** A CLI run or installed: a shell command, a container image, an install line, or a subprocess call */
 function runsCli(text, name) {
     const n = esc(name);
-    return (new RegExp(`^\\s*(?:\\$\\s*|RUN\\s+|exec\\s+|npx\\s+(?:-y\\s+)?)?${n}\\s+[-\\w"']`, "m").test(text) ||
-        new RegExp(`image:\\s*["']?[\\w./-]*\\b${n}\\b`, "i").test(text) ||
-        new RegExp(`\\b(pip3?|uv|pipx|npm|pnpm|yarn|bun|brew|npx)\\s+(?:install|add|i|tool install|x)?[^\\n]*?(^|\\s)${n}(\\s|$|@|=)`, "m").test(text) ||
-        new RegExp(`\\b(spawn|spawnSync|execFile|execFileSync|execa|exec|Popen|run|call|check_output|check_call|ProcessBuilder|Command|system)\\s*\\(\\s*\\[?\\s*["']${n}["']`).test(text));
+    const res = [
+        new RegExp(`^\\s*(?:\\$\\s*|RUN\\s+|exec\\s+|npx\\s+(?:-y\\s+)?)?${n}\\s+[-\\w"']`),
+        new RegExp(`image:\\s*["']?[\\w./-]*\\b${n}\\b`, "i"),
+        new RegExp(`\\b(pip3?|uv|pipx|npm|pnpm|yarn|bun|brew|npx)\\s+(?:install|add|i|tool install|x)?[^\\n]*?(^|\\s)${n}(\\s|$|@|=)`),
+        new RegExp(`\\b(spawn|spawnSync|execFile|execFileSync|execa|exec|Popen|run|call|check_output|check_call|ProcessBuilder|Command|system)\\s*\\(\\s*\\[?\\s*["']${n}["']`),
+    ];
+    // Line by line, lines up to 2 KB: a command is one line, and these backtrack on huge ones (review F2)
+    if (!text.includes(name))
+        return false;
+    return text.split("\n").some((l) => l.length <= 2048 && l.includes(name) && res.some((re) => re.test(l)));
 }
 export async function repoEvidence(root, opts) {
     const ev = { all: false, providers: new Set(), reasons: [] };
@@ -84,7 +91,7 @@ export async function repoEvidence(root, opts) {
             add("*", `${d.provider} dependency`);
     }
     // Framework and router packages: in manifests, or imported in code
-    const manifestTexts = await Promise.all(opts.manifests.map((m) => readFile(m, "utf8").catch(() => "")));
+    const manifestTexts = await Promise.all(opts.manifests.map(readManifest));
     const imports = new Set();
     for (const src of opts.sources)
         for (const m of src.matchAll(IMPORT_LINE)) {

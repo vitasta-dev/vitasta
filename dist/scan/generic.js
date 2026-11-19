@@ -87,7 +87,8 @@ export function analyzeGeneric(file, lang, source, tree) {
             continue;
         const row = s.startPosition.row;
         const lineText = lines[row] ?? "";
-        const before = lineText.slice(0, s.startPosition.column);
+        // Only the end of the line before the string matters, and these regexes backtrack on very long lines (F2)
+        const before = lineText.slice(Math.max(0, s.startPosition.column - 256), s.startPosition.column);
         // 1. URL on a provider's host
         if (/^https?:\/\//.test(v)) {
             const hit = matchUrl(v);
@@ -125,7 +126,7 @@ export function analyzeGeneric(file, lang, source, tree) {
         if (!kind)
             continue;
         out.push({
-            ...(kind === "listed" ? { listed: true } : {}),
+            ...(kind === "listed" ? { listed: true } : {}), ...(kind === "setting" ? { setting: true } : {}),
             provider: ref.provider.id, kind: "model-ref", lang, file, line: lineOf(s),
             model: ref.model, confidence: "possible", snippet: snippetOf(source, s), ...(ref.host ? { host: ref.host } : {}),
             modelSpan: ref.prefixed ? undefined : { start: s.startIndex, end: s.endIndex, kind: "string" },

@@ -6,6 +6,13 @@ import type { Lang } from "./types.js";
 
 const GITHUB_OPS: Record<string, string> = createRequire(import.meta.url)("./data/github-ops.json");
 
+/** Partner vendors' model IDs on Azure and Bedrock, by vendor family (src/data/partner-models.json) */
+interface PartnerData {
+  bedrock: { regionPrefixes: string[]; namespaces: Record<string, string> };
+  azure: { families: { provider: string; pattern: string }[] };
+}
+const PARTNERS: PartnerData = createRequire(import.meta.url)("./data/partner-models.json");
+
 export interface ProviderDef {
   id: string;
   /** Exported names that construct a client (class or factory) */
@@ -127,7 +134,7 @@ export const PROVIDERS: ProviderDef[] = [
     hosts: ["api.openai.com"],
     versionHeaders: ["openai-beta"],
     modelPattern:
-      /^(gpt-\d[\w.-]*|gpt-image-[\w.-]+|o[1-9](-(mini|pro|preview|deep-research)[\w.-]*)?|chatgpt-4o[\w.-]*|text-(davinci|curie|babbage|ada)-\d{3}|code-(davinci|cushman)-\d{3}|text-(search|similarity)-[a-z]+-(doc|query)?-?\d{3}|text-embedding-[\w.-]+|text-moderation-[\w.-]+|omni-moderation-[\w.-]+|davinci-002|babbage-002|dall-e-[23]|whisper-1|tts-1(-hd)?|codex-mini[\w.-]*|computer-use-preview[\w.-]*)$/,
+      /^(gpt-\d[\w.-]*|gpt-image-[\w.-]+|gpt-(realtime|audio|chat)(-[\w.-]+)?|sora-\d[\w.-]*|o[1-9](-(mini|pro|preview|deep-research)[\w.-]*)?|chatgpt-4o[\w.-]*|text-(davinci|curie|babbage|ada)-\d{3}|code-(davinci|cushman)-\d{3}|text-(search|similarity)-[a-z]+-(doc|query)?-?\d{3}|text-embedding-[\w.-]+|text-moderation-[\w.-]+|omni-moderation-[\w.-]+|davinci-002|babbage-002|dall-e-[23]|whisper-1|tts-1(-hd)?|codex-mini[\w.-]*|computer-use-preview[\w.-]*)$/,
     sdkOps: {
       "chat.completions.create": "POST /v1/chat/completions",
       "chat.completions.stream": "POST /v1/chat/completions",
@@ -399,23 +406,78 @@ function loadBuiltInSpecs(): void {
 }
 loadBuiltInSpecs();
 
+
 type Host = "azure" | "bedrock" | "vertex";
+
+const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const BEDROCK_NS = new Map(Object.entries(PARTNERS.bedrock.namespaces));
+const BEDROCK_ARN = /^arn:aws[\w-]*:bedrock:[\w-]*:\d*:[\w-]+\//;
+/** A cross-region prefix in front of a known namespace: us.anthropic.…, eu.meta.…, global.amazon.… */
+const BEDROCK_REGION = new RegExp(`^[a-z-]+\\d?\\.(?=(?:${[...BEDROCK_NS.keys()].map(esc).join("|")})\\.)`);
+const AZURE_FAMILIES = PARTNERS.azure.families.map((f) => ({ provider: f.provider, pattern: new RegExp(f.pattern, "i") }));
+
+/** Provider ids that partner-models.json names for a platform (so the platform's code may serve them) */
+export function partnerProviders(host: Host): string[] {
+  return host === "bedrock" ? [...new Set(BEDROCK_NS.values())] : host === "azure" ? [...new Set(AZURE_FAMILIES.map((f) => f.provider))] : [];
+}
+
+/**
+ * A Bedrock model ID of a vendor in partner-models.json: <namespace>.<model>, after an ARN or a cross-region prefix.
+ * Strong when nothing else writes it like that: an ARN, a region prefix, or Bedrock's version ending (-v1:0, :0).
+ */
+export function bedrockModel(raw: string): { provider: string; model: string; strong: boolean } | undefined {
+  const arn = BEDROCK_ARN.test(raw);
+  let m = raw.replace(BEDROCK_ARN, "");
+  const region = BEDROCK_REGION.test(m);
+  m = m.replace(BEDROCK_REGION, "");
+  const x = /^([a-z0-9]+)\.([a-z0-9][\w.:-]*)$/.exec(m);
+  const provider = x ? BEDROCK_NS.get(x[1]) : undefined;
+  if (!x || !provider || !/[\d-]/.test(x[2]) || x[2].length > 120) return undefined;
+  return { provider, model: m, strong: arn || region || /-v\d+(:\d+)?$|:\d+$/.test(x[2]) };
+}
+
+/** The vendor of a model name in Azure's catalog (partner-models.json families), if it is one */
+export function azureFamily(model: string): string | undefined {
+  return model.length <= 120 ? AZURE_FAMILIES.find((f) => f.pattern.test(model))?.provider : undefined;
+}
+
+/**
+ * The platform a model must run on to count, when only partner-models.json knows it (no provider's own pattern):
+ * a Bedrock-form ID only on Bedrock, an Azure catalog name only on Azure.
+ */
+export function partnerOnlyHost(model: string): Host | undefined {
+  const m = normalizeModel(model);
+  if (PROVIDERS.some((p) => p.modelPattern.test(m))) return undefined;
+  if (bedrockModel(m)) return "bedrock";
+  if (azureFamily(m)) return "azure";
+  return undefined;
+}
 
 /** Some model IDs say where they run: Bedrock IDs and ARNs, Vertex "@version" IDs and publisher paths. */
 export function hostOfModel(model: string): Host | undefined {
-  if (/^arn:aws[\w-]*:bedrock:|(^|\.)anthropic\.claude-/.test(model)) return "bedrock";
+  if (/^arn:aws[\w-]*:bedrock:|(^|\.)anthropic\.claude-/.test(model) || bedrockModel(model)?.strong) return "bedrock";
   if (/^claude-[\w.-]+@\d{8}$/.test(model) || model.startsWith("publishers/")) return "vertex";
   return undefined;
 }
 
-/** Bedrock: strip the ARN and the cross-region prefix, e.g. us.anthropic.claude-x-v1:0 → anthropic.claude-x-v1:0.
+/** Bedrock: strip the ARN and the cross-region prefix, e.g. us.meta.llama-x-v1:0 → meta.llama-x-v1:0.
  *  Google: strip "models/" and "publishers/google/models/". */
 export function normalizeModel(model: string): string {
-  let m = model.replace(/^arn:aws[\w-]*:bedrock:[\w-]*:\d*:[\w-]+\//, "");
-  m = m.replace(/^[a-z-]+\d?\.(anthropic\.)/, "$1");
+  let m = model.replace(BEDROCK_ARN, "");
+  m = m.replace(BEDROCK_REGION, "");
   m = m.replace(/^(publishers\/[\w-]+\/)?models\//, "");
   return m;
 }
+
+/** Partner vendors without an API of their own here get a provider entry, so their models have a provider id */
+function loadPartnerProviders(): void {
+  const ids = [...BEDROCK_NS.values(), ...AZURE_FAMILIES.map((f) => f.provider)];
+  for (const id of new Set(ids)) {
+    if (PROVIDERS.some((p) => p.id === id)) continue;
+    PROVIDERS.push({ id, clientClasses: [], packages: {}, hosts: [], versionHeaders: [], modelPattern: NEVER, sdkOps: {} });
+  }
+}
+loadPartnerProviders();
 
 export function providerById(id: string): ProviderDef | undefined {
   return PROVIDERS.find((p) => p.id === id);
@@ -466,7 +528,11 @@ export function hostOfClass(cls: string): Host | undefined {
 }
 
 export function modelProvider(model: string): ProviderDef | undefined {
-  return PROVIDERS.find((p) => p.modelPattern.test(model));
+  const own = PROVIDERS.find((p) => p.modelPattern.test(model));
+  if (own) return own;
+  // A partner vendor's model on a cloud platform (partner-models.json); counted only on that platform (index.ts)
+  const partner = bedrockModel(model)?.provider ?? azureFamily(model);
+  return partner ? providerById(partner) : undefined;
 }
 
 /**
@@ -485,7 +551,13 @@ const ROUTE_PREFIXES: Record<string, Host | null> = {
  * prefixed ID is that router's model, with the router's dates, not a route to the provider's own API.
  */
 export function mentionsRouter(source: string): boolean {
-  return PROVIDERS.some((p) => p.publicModelPattern && [...p.hosts, ...Object.values(p.packages).flat()].some((w) => w && source.includes(w)));
+  return PROVIDERS.some(
+    (p) =>
+      p.publicModelPattern &&
+      (p.hosts.some((h) => h && source.includes(h)) ||
+        // A package named in an import or require ("@openrouter/sdk", import openrouter), not a word in a comment
+        Object.values(p.packages).flat().some((w) => !!w && ([`"${w}"`, `'${w}'`, `"${w}/`, `'${w}/`].some((q) => source.includes(q)) || new RegExp(`^\\s*(?:from|import)\\s+${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "m").test(source)))),
+  );
 }
 
 /** A model ID as written in code, with any route prefix taken off: which provider, which model, which host. */
@@ -493,6 +565,13 @@ export function modelRef(raw: string, routerFile = false): { provider: ProviderD
   const direct = modelProvider(raw);
   if (direct) return { provider: direct, model: raw, prefixed: false };
   if (routerFile) return undefined;
+  // A gateway in front of the route: "mastra/openai/gpt-5-mini", "gateway/anthropic:claude-…" (one or two plain
+  // segments, never a file path: the model part can't end in a file extension)
+  const gw = /^(?:[a-z][\w-]{0,30}\/){1,2}([a-z][\w-]*[/:].+)$/.exec(raw);
+  if (gw && !/\.(md|mdx|json|ya?ml|txt|ts|js|py|png|jpg|svg|html|csv)$/i.test(raw)) {
+    const inner: ReturnType<typeof modelRef> = modelRef(gw[1], routerFile);
+    if (inner?.prefixed) return inner;
+  }
   const m = /^([a-z][\w-]*)[/:](.+)$/.exec(raw);
   if (!m || !(m[1] in ROUTE_PREFIXES)) return undefined;
   const p = modelProvider(m[2]);

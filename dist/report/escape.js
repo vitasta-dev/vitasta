@@ -3,7 +3,8 @@
  * a repo's own .vitasta.yml (titles, replacements), so it can't add links, images, HTML or break tables in reports
  * that GitHub renders.
  */
-const oneLine = (s) => String(s ?? "").replace(/[\r\n\u2028\u2029]+/g, " ");
+/** One line, without control or invisible formatting characters (terminal escapes, bidi overrides) from the repo */
+const oneLine = (s) => String(s ?? "").replace(/[\r\n\u2028\u2029]+/g, " ").replace(/[\p{Cc}\p{Cf}]/gu, "");
 /** Inline code span that holds any text, backticks included. Use `cell` inside table rows. */
 export function code(s) {
     const t = oneLine(s);
@@ -24,7 +25,8 @@ export function text(s) {
 export const cell = (s) => s.replace(/\|/g, "\\|");
 /** Fenced code block whose fence can't be closed by the content. */
 export function fence(s) {
-    const t = String(s ?? "");
+    // Keep tabs and newlines; drop other control and formatting characters (terminal escapes, bidi overrides)
+    const t = String(s ?? "").replace(/[^\P{Cc}\t\n]|\p{Cf}/gu, "");
     const run = Math.max(2, ...(t.match(/`{3,}/g) ?? []).map((m) => m.length));
     const f = "`".repeat(run + 1);
     return `${f}\n${t}\n${f}`;

@@ -18,5 +18,24 @@ jobs:
           node-version: "22"
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
+      # The feed (private repo) for the partner-model coverage test, read with a read-only token. Without the
+      # secret this step is skipped and that test fails on purpose (test/partner-models.test.ts)
+      # FEED_READ_TOKEN: a read-only token for vitasta-dev/feed (contents: read). Only these two steps see it
+      - name: Is there a feed token?
+        id: feedtoken
+        env:
+          T: ${{ secrets.FEED_READ_TOKEN }}
+        run: echo "present=$([ -n "$T" ] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+      - name: Check out the feed
+        if: steps.feedtoken.outputs.present == 'yes'
+        uses: actions/checkout@v4
+        with:
+          repository: vitasta-dev/feed
+          token: ${{ secrets.FEED_READ_TOKEN }}
+          path: feed-checkout
+          sparse-checkout: data
+          persist-credentials: false
       - run: npx vitest run
+        env:
+          VITASTA_FEED_DATA: ${{ github.workspace }}/feed-checkout/data
       - run: npm run build

@@ -1,4 +1,5 @@
 import { checkedOf, dateKindOf, partlyRetired, todayOf, todayUtc, verbOf, whenOf } from "../feed/dates.js";
+import { roleFor } from "../scan/roles.js";
 import { code, fence, text, url } from "./escape.js";
 const STATUS = {
     broken: "🔴 Broken now",
@@ -58,10 +59,16 @@ export function renderMarkdown(map, findings, repoLabel, opts) {
     const lines = [];
     lines.push(`# Vitasta impact report: ${repoLabel}`, "");
     lines.push(`Scanned ${map.filesScanned} source files on ${todayUtc(new Date(map.scannedAt))}.`, "");
-    // Test, example and fixture files are listed apart at the end: recorded data and mocks repeat model names, and
-    // they never fail a check
-    const groups = groupFindings(findings.filter((f) => !f.usage.inTest));
-    const testGroups = groupFindings(findings.filter((f) => f.usage.inTest));
+    // By role (src/scan/roles.ts): live code in detail; code people copy in detail too (the fix swaps it); tests,
+    // catalogs and recorded data listed apart. Only live code fails a check
+    const of = (...rs) => findings.filter((f) => rs.includes(roleFor(f.usage)));
+    const groups = groupFindings(of("breaks"));
+    const copyGroups = groupFindings(of("users-copy"));
+    const testAsserts = groupFindings(of("test-asserts"));
+    const testData = groupFindings(of("test-data"));
+    const catalogGroups = groupFindings(of("catalog"));
+    const recordedGroups = groupFindings(of("recorded"));
+    const testGroups = [...testAsserts, ...testData];
     const count = (s) => groups.filter((g) => g.first.status === s);
     lines.push("| Status | Issues | Places in code |", "|---|---|---|");
     for (const s of Object.keys(STATUS)) {
@@ -69,11 +76,16 @@ export function renderMarkdown(map, findings, repoLabel, opts) {
         lines.push(`| ${STATUS[s]} | ${gs.length} | ${gs.reduce((n, g) => n + g.lines.length, 0)} |`);
     }
     lines.push("");
-    if (testGroups.length)
-        lines.push(`Plus ${testGroups.length} in tests, examples and fixtures, listed at the end. They never fail a check.`, "");
-    if (groups.length) {
-        lines.push("## What breaks", "");
-        for (const g of groups) {
+    const also = [
+        copyGroups.length ? `${copyGroups.length} in examples and docs` : "",
+        testGroups.length ? `${testGroups.length} in tests` : "",
+        catalogGroups.length ? `${catalogGroups.length} in model lists and catalogs` : "",
+        recordedGroups.length ? `${recordedGroups.length} in recorded data` : "",
+    ].filter(Boolean);
+    if (also.length)
+        lines.push(`Also ${also.join(", ")}, listed below. Only live code fails a check.`, "");
+    const detailed = (gs) => {
+        for (const g of gs) {
             const f = g.first;
             const u = f.usage;
             const where = u.host ? ` on ${{ bedrock: "Amazon Bedrock", vertex: "Vertex AI", azure: "Azure" }[u.host]}` : "";
@@ -105,17 +117,48 @@ export function renderMarkdown(map, findings, repoLabel, opts) {
             if (extra)
                 lines.push(extra, "");
         }
-    }
-    else {
-        lines.push(testGroups.length ? "Nothing outside tests, examples and fixtures." : "No known upcoming breaking changes affect this repo.", "");
-    }
-    if (testGroups.length) {
-        lines.push(`<details><summary>In tests, examples and fixtures (${testGroups.length})</summary>`, "");
-        for (const g of testGroups) {
+    };
+    /** One line per place: tests, catalogs, recorded data */
+    const brief = (gs) => {
+        for (const g of gs) {
             const f = g.first;
             const shown = g.lines.slice(0, 5).join(", ") + (g.lines.length > 5 ? ` and ${g.lines.length - 5} more` : "");
-            lines.push(`- ${STATUS[f.status]}: ${titleOf(f, "")} in ${code(f.usage.file)} line${g.lines.length > 1 ? "s" : ""} ${shown}`);
+            lines.push(`- ${STATUS[f.status]}: ${titleOf(f, "")} in ${code(f.usage.file)} line${g.lines.length > 1 ? "s" : ""} ${shown}${f.usage.reason ? ` (${text(f.usage.reason)})` : ""}`);
         }
+    };
+    if (groups.length) {
+        lines.push("## What breaks", "");
+        detailed(groups);
+    }
+    else {
+        lines.push(also.length ? "Nothing in live code." : "No known upcoming breaking changes affect this repo.", "");
+    }
+    if (copyGroups.length) {
+        lines.push("## In examples and docs", "", "Code people copy: a complete fix updates these too.", "");
+        detailed(copyGroups);
+    }
+    if (testGroups.length) {
+        lines.push(`<details><summary>In tests (${testGroups.length})</summary>`, "");
+        if (testAsserts.length) {
+            lines.push("", "Tests that set or check the old model: a fix updates them in the same pull request, so your CI keeps passing.", "");
+            brief(testAsserts);
+        }
+        if (testData.length) {
+            lines.push("", "Tests that only store, display or look the model up: cleanup, not changed automatically.", "");
+            brief(testData);
+        }
+        lines.push("", "</details>", "");
+    }
+    if (catalogGroups.length) {
+        lines.push(`<details><summary>In model lists, catalogs and price tables (${catalogGroups.length})</summary>`, "");
+        lines.push("", "Never renamed: the new model has its own prices and limits. Retire or remove the old entry, and add the new model where it belongs.", "");
+        brief(catalogGroups);
+        lines.push("", "</details>", "");
+    }
+    if (recordedGroups.length) {
+        lines.push(`<details><summary>In recorded data (${recordedGroups.length})</summary>`, "");
+        lines.push("", "Telemetry, recorded responses and seed data describe calls that already happened. For information; never changed.", "");
+        brief(recordedGroups);
         lines.push("", "</details>", "");
     }
     if (findings.some((f) => f.usage.host === "azure")) {

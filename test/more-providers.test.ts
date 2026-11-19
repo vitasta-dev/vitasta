@@ -103,10 +103,13 @@ describe("OpenAI prompt objects", () => {
 
 describe("tables and catalogs (false positives from the 30 Nov repo count)", () => {
   it("a model ID as a lookup-table key (colours, sizes, prices) isn't a use", () => {
-    expect(at("tables.ts", 2)).toBeUndefined();
-    expect(at("tables.ts", 3)).toBeUndefined();
-    expect(at("tables.py", 2)).toBeUndefined();
-    expect(at("tables.py", 5)).toBeUndefined();
+    // Price tables are still reported, as catalog entries with a reason, never as uses (founder, 19 Nov)
+    const use = (file: string, line: number) => { const u = at(file, line); return u && !u.reason ? u : undefined; };
+    expect(use("tables.ts", 2)).toBeUndefined();
+    expect(use("tables.ts", 3)).toBeUndefined();
+    expect(use("tables.py", 2)).toBeUndefined();
+    expect(use("tables.py", 5)).toBeUndefined();
+    for (const [f, l] of [["tables.ts", 2], ["tables.ts", 3], ["tables.py", 2], ["tables.py", 5]] as const) { const u = at(f, l); if (u) expect(u.role, `${f}:${l}`).toMatch(/catalog|recorded/); }
   });
 
   it("catalogs, pickers, model lists, types and alias maps are reported as listed, not as calls", () => {

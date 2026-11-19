@@ -26,7 +26,7 @@
 import { lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { providerFromSpec, type ProviderDef, type ProviderSpec } from "./providers.js";
+import { PROVIDERS, providerFromSpec, type ProviderDef, type ProviderSpec } from "./providers.js";
 import type { ChangeRecord, Finding, Usage } from "./types.js";
 
 export interface Policy {
@@ -121,13 +121,45 @@ function globMatcher(glob: string): PathMatcher {
 /** Longest string a repo's own pattern is ever tested against: model ids, versions and paths are short */
 const MAX_PATTERN_INPUT = 256;
 
-/** A repo's RegExp that refuses long inputs, so even a slow pattern has a hard ceiling on its work. */
+/** Time all of a repo's own patterns may spend matching in one scan, together; after that they match nothing (F1) */
+const PATTERN_BUDGET_MS = 2000;
+
+/** One time allowance shared by every pattern from one repo's config */
+export class PatternBudget {
+  spent = 0;
+  get exhausted(): boolean {
+    return this.spent > PATTERN_BUDGET_MS;
+  }
+}
+
+// V8 switches a match to its linear-time engine once it backtracks too much (about 10× faster on the worst patterns
+// measured). It only changes how a slow match runs, never what matches. Not every Node build has the flag.
+try {
+  (await import("node:v8")).setFlagsFromString("--enable-experimental-regexp-engine-on-excessive-backtracks");
+} catch {
+  /* not available */
+}
+
+/**
+ * A repo's RegExp with a hard ceiling on its work: it refuses long inputs, and once it has used its time budget for
+ * this scan it stops matching, so even a pattern that slips past safePattern can't stall a scan for long.
+ */
 export class BoundedRegExp extends RegExp {
+  budget = new PatternBudget();
+  private timed<T>(run: () => T, none: T): T {
+    if (this.budget.exhausted) return none;
+    const t = performance.now();
+    try {
+      return run();
+    } finally {
+      this.budget.spent += performance.now() - t;
+    }
+  }
   test(s: string): boolean {
-    return String(s).length <= MAX_PATTERN_INPUT && super.test(s);
+    return String(s).length <= MAX_PATTERN_INPUT && this.timed(() => super.test(s), false);
   }
   exec(s: string): RegExpExecArray | null {
-    return String(s).length <= MAX_PATTERN_INPUT ? super.exec(s) : null;
+    return String(s).length <= MAX_PATTERN_INPUT ? this.timed(() => super.exec(s), null) : null;
   }
 }
 
@@ -143,6 +175,9 @@ export function safePattern(src: string | undefined, what: string): string | und
   if (/\)\s*(?:[*+?]|\{)/.test(bare)) throw new Error(`${what}: a repeated group like (...)+ isn't allowed`);
   if (/\(\?(?:=|!|<=|<!)/.test(bare) || /\\[1-9k]/.test(src)) throw new Error(`${what}: look-arounds and back-references aren't allowed`);
   if ((bare.match(/[*+]|\{\d+,\}/g) ?? []).length > 2) throw new Error(`${what}: at most two open-ended repeats (*, +) are allowed`);
+  // Long bounded repeats next to open-ended ones still backtrack (\w*\w*\w{0,250}!): keep them short (review F1).
+  // Whatever slips through is capped by the scan's time budget for repo patterns (BoundedRegExp)
+  if ([...bare.matchAll(/\{(\d+)(?:,(\d*))?\}/g)].some((m) => Number(m[2] || m[1]) > 32)) throw new Error(`${what}: bounded repeats {m,n} may go up to 32`);
   // Bounded repeats chained together backtrack too (a{0,40}a{0,40}a{0,40}...): cap repeats of any kind
   if ((bare.match(/[*+?]|\{\d+(,\d*)?\}/g) ?? []).length > 3) throw new Error(`${what}: at most three repeats (*, +, ?, {m,n}) are allowed`);
   new RegExp(src); // throws on invalid syntax
@@ -163,7 +198,12 @@ function specProblem(s: ProviderSpec): string | undefined {
   return undefined;
 }
 
-const bounded = (re: RegExp | undefined) => (re ? new BoundedRegExp(re.source, re.flags) : undefined);
+const bounded = (re: RegExp | undefined, budget: PatternBudget) => {
+  if (!re) return undefined;
+  const b = new BoundedRegExp(re.source, re.flags);
+  b.budget = budget;
+  return b;
+};
 
 const isDate = (s: unknown) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(s))) return false;
@@ -171,6 +211,9 @@ const isDate = (s: unknown) => {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === String(s);
 };
 const SELECTOR_FIELDS = ["models", "ops", "params", "sdkCalls", "hosts", "versions"] as const;
+
+/** Provider ids that ship with the scanner, read before any repo config can register its own */
+const BUILT_IN_IDS = new Set(PROVIDERS.map((p) => p.id));
 
 export const CONFIG_FILES = [".vitasta.yml", ".vitasta.yaml", ".github/vitasta.yml"];
 
@@ -180,6 +223,8 @@ export const CONFIG_FILES = [".vitasta.yml", ".vitasta.yaml", ".github/vitasta.y
  */
 export async function loadRepoConfig(root: string, fromText?: string | null): Promise<RepoConfig> {
   const cfg: RepoConfig = { ignore: [], providers: [], changes: [], policy: { ...DEFAULT_POLICY }, warnings: [] };
+  // Every pattern from this config shares one time allowance per scan
+  const budget = new PatternBudget();
   let text: string | undefined = fromText ?? undefined;
   for (const name of fromText !== undefined ? [] : CONFIG_FILES) {
     // Never follow a symlink, at any level (.github itself could be one): it could point outside the repo, and the
@@ -221,13 +266,16 @@ export async function loadRepoConfig(root: string, fromText?: string | null): Pr
       safePattern(spec.modelPattern, `providers[${i}].modelPattern`);
       safePattern(spec.urlVersion, `providers[${i}].urlVersion`);
       safePattern(spec.stripPrefix, `providers[${i}].stripPrefix`);
+      // A repo's provider can't stand in for a built-in one: its usages would then be sent to the lookup as that
+      // provider's (review F6)
+      if (BUILT_IN_IDS.has(spec.id)) throw new Error(`id "${spec.id}" is a built-in provider; use another name`);
       // Path ownership and the lookup's public-ID rule are for built-in providers only
       const def = providerFromSpec({ ...spec, pathPattern: undefined, publicModelPattern: undefined });
       // A repo's keywords are plain words, not regexes (they go into the scan prefilter)
       const keywords = def.keywords?.filter((k) => typeof k === "string" && k.length <= 60).map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
       const hosts = def.hosts.filter((h) => typeof h === "string" && /^[\w.-]{1,253}$/.test(h));
       if (!hosts.length) throw new Error("hosts must be plain host names");
-      cfg.providers.push({ ...def, hosts, keywords, modelPattern: bounded(def.modelPattern)!, urlVersion: bounded(def.urlVersion), stripPrefix: bounded(def.stripPrefix) });
+      cfg.providers.push({ ...def, hosts, keywords, modelPattern: bounded(def.modelPattern, budget)!, urlVersion: bounded(def.urlVersion, budget), stripPrefix: bounded(def.stripPrefix, budget) });
     } catch (e) {
       cfg.warnings.push(`providers[${i}] skipped: ${(e as Error).message}`);
     }
@@ -239,8 +287,10 @@ export async function loadRepoConfig(root: string, fromText?: string | null): Pr
       !isDate(r.effective) ? "effective must be a real date, YYYY-MM-DD" : !r.selector || typeof r.selector !== "object" || Array.isArray(r.selector) ? "missing selector" :
       SELECTOR_FIELDS.some((k) => r.selector[k] !== undefined && !(Array.isArray(r.selector[k]) && r.selector[k]!.every((x) => typeof x === "string"))) ? `selector fields (${SELECTOR_FIELDS.join(", ")}) must be lists of strings` :
       !SELECTOR_FIELDS.some((k) => r.selector[k]?.length) ? "selector is empty" : undefined;
-    if (problem) {
-      cfg.warnings.push(`changes[${i}] skipped: ${problem}`);
+    // Text fields are text: a number or a list here crashed the scan later (review F15)
+    const badText = !problem && (["title", "replacement", "guide"] as const).find((k) => r[k] !== undefined && (typeof r[k] !== "string" || (r[k] as string).length > 500));
+    if (problem || badText) {
+      cfg.warnings.push(`changes[${i}] skipped: ${problem || `${badText} must be text`}`);
       continue;
     }
     cfg.changes.push({ ...r, effective: String(r.effective), trigger: r.trigger === "upgrade" ? "upgrade" : "date", title: r.title ?? r.id, sources: r.sources ?? [{ url: ".vitasta.yml", note: "defined by this repository" }] });

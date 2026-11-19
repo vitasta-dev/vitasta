@@ -1,0 +1,45 @@
+{
+  "_comment": "Partner-vendor model IDs on cloud platforms, by vendor family, not by model. Provider ids are the ones the feed uses for that vendor (feed src/clouds.ts vendorProvider), so a model found here matches the platform's retirement records. A model recognised only through this file counts only where the code runs it on that platform: Bedrock IDs say so themselves; an Azure family name needs the code to place it on Azure (src/scan/platform.ts). test/partner-models.test.ts checks every Azure and Bedrock model ID in the feed against this file.",
+  "bedrock": {
+    "_comment": "A Bedrock model ID is <namespace>.<model>, with an optional cross-region prefix (us., eu., global. …) or a bedrock ARN in front. namespaces: the ID's namespace → the feed's provider id. A strong ID (ends in a Bedrock version such as -v1:0, or has a region prefix or ARN) counts anywhere; one without counts only in Bedrock code.",
+    "regionPrefixes": ["us", "eu", "apac", "global", "us-gov", "jp", "au", "ca"],
+    "namespaces": {
+      "ai21": "ai21labs",
+      "amazon": "amazon",
+      "anthropic": "anthropic",
+      "cohere": "cohere",
+      "deepseek": "deepseek",
+      "google": "google",
+      "luma": "lumaai",
+      "meta": "meta-llama",
+      "minimax": "minimax",
+      "mistral": "mistral",
+      "moonshot": "moonshotai",
+      "moonshotai": "moonshotai",
+      "nvidia": "nvidia",
+      "openai": "openai",
+      "qwen": "qwen",
+      "stability": "stabilityai",
+      "twelvelabs": "twelvelabs",
+      "writer": "writer",
+      "zai": "zai"
+    }
+  },
+  "azure": {
+    "_comment": "Model names in Azure's model catalog, per vendor family (case-insensitive, whole name). Only counted where the code runs the model on Azure.",
+    "families": [
+      { "provider": "openai", "pattern": "^(gpt-oss-[0-9][a-z0-9.-]*|tts|tts-hd|whisper)$" },
+      { "provider": "meta-llama", "pattern": "^(meta-)?llama-[0-9][a-z0-9.-]*$" },
+      { "provider": "microsoft", "pattern": "^(phi-[0-9][a-z0-9.-]*|mai-[a-z][a-z0-9.-]*)$" },
+      { "provider": "deepseek", "pattern": "^deepseek-(r[0-9]|v[0-9])[a-z0-9.-]*$" },
+      { "provider": "cohere", "pattern": "^cohere-(command|embed|rerank|parse)[a-z0-9.-]*$" },
+      { "provider": "mistral", "pattern": "^(mistral|ministral|codestral|magistral|devstral|pixtral|voxtral)-[a-z0-9.-]+$" },
+      { "provider": "xai", "pattern": "^grok-[a-z0-9][a-z0-9.-]*$" },
+      { "provider": "blackforestlabs", "pattern": "^flux[.-][a-z0-9][a-z0-9.-]*$" },
+      { "provider": "moonshotai", "pattern": "^kimi-k[0-9][a-z0-9.-]*$" },
+      { "provider": "stabilityai", "pattern": "^stable-(diffusion|image)-[a-z0-9.-]+$" },
+      { "provider": "nixtla", "pattern": "^timegen-[0-9][a-z0-9.-]*$" },
+      { "provider": "nttdata", "pattern": "^tsuzumi[a-z0-9.-]*$" }
+    ]
+  }
+}

@@ -35,7 +35,10 @@ const FACTORY = /(^|\.)(anthropic|openai|google|gemini|vertex|bedrock|azure|mist
 function flagName(n: Node | null | undefined): string {
   if (!n || !/^(string|string_literal|template_string)$/.test(n.type)) return "";
   const t = n.text.replace(/^[a-zA-Z]{0,2}["'`]+|["'`]+$/g, "");
-  return /^-{0,2}[\w.-]{1,60}$/.test(t) ? t.replace(/^-+/, "") : "";
+  if (/^-{0,2}[\w.-]{1,60}$/.test(t)) return t.replace(/^-+/, "");
+  // A CLI flag spec: "-m, --model <model>", "--model [name]": the long flag's name
+  const long = t.length <= 80 && t.startsWith("-") ? /--([\w.-]{1,60})/.exec(t)?.[1] : undefined;
+  return long ?? "";
 }
 
 /**
@@ -44,8 +47,24 @@ function flagName(n: Node | null | undefined): string {
  */
 function namedDefault(args: Node, n: Node): boolean {
   const items = args.namedChildren.filter((x): x is Node => !!x && x.type !== "comment");
-  if (items.length < 2 || items[1].id !== n.id) return false;
+  if (items.length < 2) return false;
+  // The default right after the flag, or after the flag and a description: .option(flags, "TTS model", "tts-1")
+  const second = items[1].id === n.id;
+  const third = items.length >= 3 && items[2].id === n.id && /^(string|string_literal|template_string)$/.test(items[1].type) && !!flagName(items[0]) && /^["'`]?-/.test(items[0].text);
+  if (!second && !third) return false;
   return isSettingName(flagName(items[0]));
+}
+
+/** A class that wraps one provider's model in agent frameworks (agno Claude, OpenAIChat, Gemini, ChatMistral…) */
+const MODEL_CLASS = /^(?:Chat|Async)?(?:Claude|Anthropic|OpenAI|OpenAIChat|AzureOpenAI|GPT|Gemini|Google|VertexAI|Mistral|MistralChat|Groq|DeepSeek|Cohere|CohereChat|Bedrock|AwsBedrock|Ollama|xAI|Grok|LiteLLM|Perplexity|Together|Fireworks)(?:Chat|Model|LLM)?$/;
+
+/**
+ * DEFAULT_PROVIDER = "openai/gpt-4o", LLM = "anthropic:claude-…": a provider-and-model route string assigned to one
+ * provider- or LLM-named variable (a route is unmistakably a model choice; lists and maps of them aren't this case)
+ */
+function routeSetting(name: string, literal: string): boolean {
+  const last = name.split(/[.\[\]'"]/).filter(Boolean).pop() ?? name;
+  return /(^|_|[a-z])(provider|llm)s?$|^(llm|provider)(_|$)/i.test(last) && /^[a-zA-Z]?["'`][a-z][\w-]*[/:][\w.:@-]+["'`]$/.test(literal.trim());
 }
 
 export function isSettingName(name: string): boolean {
@@ -128,12 +147,15 @@ export function jsSetting(s: Node): boolean {
 }
 
 export function jsSettingKind(s: Node): SettingKind | undefined {
+  // process.env.LLM_MODEL ?? "gpt-4o": a model ID as an environment variable's fallback is configuration
+  const b = s.parent;
+  if (b?.type === "binary_expression" && b.childForFieldName("right")?.id === s.id && /^(\?\?|\|\|)$/.test(b.childForFieldName("operator")?.text ?? "") && /^(process\.env|import\.meta\.env)(\.|\[)|^Deno\.env\.get\(/.test(b.childForFieldName("left")?.text ?? "")) return "setting";
   const n = climb(s, JS_WRAPPERS);
   const p = n.parent;
   if (!p) return undefined;
   switch (p.type) {
     case "variable_declarator":
-      return kindOf(p.childForFieldName("value")?.id === n.id && isSettingName(p.childForFieldName("name")?.text ?? ""), "setting");
+      return kindOf(p.childForFieldName("value")?.id === n.id && (isSettingName(p.childForFieldName("name")?.text ?? "") || routeSetting(p.childForFieldName("name")?.text ?? "", n.text)), "setting");
     case "pair": {
       const isValue = p.childForFieldName("value")?.id === n.id;
       if (isValue && (optionObjectDefault(n) || descriptorDefault(n))) return "setting";
@@ -163,6 +185,8 @@ export function jsSettingKind(s: Node): SettingKind | undefined {
     case "required_parameter":
     case "optional_parameter":
     case "assignment_pattern":
+    case "object_assignment_pattern":
+      // ({ defaultModel = "openai/gpt-4.1" }) => …: a default in a destructured parameter, too
       return kindOf(isSettingName((p.childForFieldName("pattern") ?? p.childForFieldName("left"))?.text ?? ""), "setting");
     case "arguments": {
       const call = p.parent;
@@ -204,7 +228,7 @@ export function pySettingKind(s: Node): SettingKind | undefined {
   if (!p) return undefined;
   switch (p.type) {
     case "assignment":
-      return kindOf(p.childForFieldName("right")?.id === n.id && isSettingName(p.childForFieldName("left")?.text ?? ""), "setting");
+      return kindOf(p.childForFieldName("right")?.id === n.id && (isSettingName(p.childForFieldName("left")?.text ?? "") || routeSetting(p.childForFieldName("left")?.text ?? "", n.text)), "setting");
     case "keyword_argument": {
       const k = p.childForFieldName("name")?.text ?? "";
       // add_argument("--model", default="gpt-4o"), click.option("--judge-model", default=…)
@@ -213,6 +237,7 @@ export function pySettingKind(s: Node): SettingKind | undefined {
         const call = p.parent.parent;
         return kindOf(isSettingName(flagName(p.parent.namedChildren[0])) || (!!call && pySettingTarget(call)), "setting");
       }
+      if (/^(id|model_id|model_name)$/.test(k) && p.parent?.type === "argument_list" && MODEL_CLASS.test(p.parent.parent?.childForFieldName("function")?.text.split(".").pop() ?? "")) return "setting";
       return kindOf(isSettingName(k), "setting");
     }
     case "default_parameter":
@@ -241,6 +266,8 @@ export function pySettingKind(s: Node): SettingKind | undefined {
       const fn = call?.childForFieldName("function")?.text ?? "";
       if (namedDefault(p, n)) return "setting";
       // os.environ.get("OPENAI_MODEL", "gpt-4o"): the default of a model-named setting
+      // os.getenv("LLM_PROVIDER", "openai/gpt-4o"): a model ID as an environment variable's default is configuration
+      if (/(^|\.)(environ\.get|getenv|environ\.setdefault)$/.test(fn) && p.namedChildren[1]?.id === n.id) return "setting";
       if (/(^|\.)(get|getenv)$/.test(fn)) {
         const key = p.namedChildren[0];
         return kindOf((p.namedChildren[1]?.id === n.id && !!key && isSettingName(key.text)) || (call ? pySettingTarget(call) : false), "setting");
@@ -283,7 +310,7 @@ export function javaSetting(s: Node): boolean {
 
 /** Config line "key: value" / "KEY=value" / "\"key\": \"value\"": is the key model-named? */
 export function configKeySetting(lineBeforeToken: string): boolean {
-  const m = /["']?([\w.\-]+)["']?\s*[:=]\s*["']?\s*$/.exec(lineBeforeToken);
+  const m = /["']?([\w.\-]+)["']?\s*[:=]\s*["']?\s*$/.exec(lineBeforeToken.slice(-256));
   return !!m && isSettingName(m[1]);
 }
 
@@ -360,7 +387,7 @@ export function descriptorDefault(s: Node): boolean {
   if (!DEFAULT_KEY.test(pair.childForFieldName("key")?.text ?? "")) return false;
   const descriptor = pair.parent;
   if (descriptor?.type !== "object") return false;
-  const name = pairValue(descriptor, /^["']?(name|id|key)["']?$/);
+  const name = pairValue(descriptor, /^["']?(name|id|key)["']?$/) ?? pairValue(descriptor, /^["']?(displayName|display_name|label|title)["']?$/);
   return !!name && isSettingName(name);
 }
 

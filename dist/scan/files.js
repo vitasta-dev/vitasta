@@ -1,4 +1,4 @@
-import { readdir, stat } from "node:fs/promises";
+import { lstat, readFile, readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 const SKIP_DIRS = new Set([
     "node_modules", ".git", "dist", "build", "out", ".next", ".nuxt", ".turbo", "coverage",
@@ -54,6 +54,37 @@ export async function listSourceFiles(root) {
     await walk(root);
     return out.sort((a, b) => a.rel.localeCompare(b.rel));
 }
+/** Markdown files (READMEs, docs) whose code blocks are scanned as documentation: at most 300, 1 MB each */
+export async function listDocFiles(root) {
+    const out = [];
+    async function walk(dir) {
+        if (out.length >= 300)
+            return;
+        let entries;
+        try {
+            entries = await readdir(dir, { withFileTypes: true });
+        }
+        catch {
+            return;
+        }
+        for (const e of entries) {
+            if (out.length >= 300)
+                return;
+            const full = join(dir, e.name);
+            if (e.isDirectory()) {
+                if (!SKIP_DIRS.has(e.name))
+                    await walk(full);
+            }
+            else if (e.isFile() && /\.(md|mdx)$/i.test(e.name)) {
+                const s = await stat(full);
+                if (s.size <= MAX_FILE_BYTES)
+                    out.push({ path: full, rel: relative(root, full) });
+            }
+        }
+    }
+    await walk(root);
+    return out.sort((a, b) => a.rel.localeCompare(b.rel));
+}
 /** Manifest files anywhere in the repo (monorepos have several). */
 export async function listManifests(root) {
     const names = new Set([
@@ -83,4 +114,16 @@ export async function listManifests(root) {
     }
     await walk(root);
     return out;
+}
+/** A manifest's text: a regular file of at most 1 MB (a huge one is data, and is never worth the memory), else "" */
+export async function readManifest(file) {
+    try {
+        const st = await lstat(file);
+        if (!st.isFile() || st.size > 1_000_000)
+            return "";
+        return await readFile(file, "utf8");
+    }
+    catch {
+        return "";
+    }
 }

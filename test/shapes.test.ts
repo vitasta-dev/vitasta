@@ -4,7 +4,7 @@ import { scanRepo } from "../src/scan/index.js";
 
 const refs = async (repo: string, file: string) =>
   (await scanRepo(resolve(import.meta.dirname, "fixtures/shapes", repo))).usages
-    .filter((u) => u.file === file && u.kind === "model-ref")
+    .filter((u) => u.file === file && u.kind === "model-ref" && !u.reason)
     .map((u) => `${u.line} ${u.model}${u.listed ? " (listed)" : ""}`);
 
 describe("models in code shapes count when the repo uses the provider", () => {

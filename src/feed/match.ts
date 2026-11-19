@@ -31,8 +31,10 @@ export async function loadFeed(dir: string): Promise<ChangeRecord[]> {
   return out;
 }
 
-function matchModel(patterns: string[], model: string): boolean {
-  return patterns.some((p) => (p.endsWith("*") ? model.startsWith(p.slice(0, -1)) : model === p));
+/** Azure's model catalog names aren't case-sensitive ("DeepSeek-R1" and "deepseek-r1" are one model) */
+function matchModel(patterns: string[], model: string, anyCase = false): boolean {
+  const f = (x: string) => (anyCase ? x.toLowerCase() : x);
+  return patterns.some((p) => (p.endsWith("*") ? f(model).startsWith(f(p.slice(0, -1))) : f(model) === f(p)));
 }
 
 /**
@@ -74,7 +76,7 @@ export function matches(change: ChangeRecord, u: Usage): boolean {
     return !!v && !!s.versions?.includes(v);
   }
   if (s.models) {
-    if (!u.model || !matchModel(s.models, normalizeModel(u.model))) return false;
+    if (!u.model || !matchModel(s.models, normalizeModel(u.model), !!s.hosts?.includes("azure") && u.host === "azure")) return false;
   }
   if (s.ops) {
     if (!u.op || !matchOp(s.ops, u.op)) return false;

@@ -14,7 +14,9 @@ import { readFileSync } from "node:fs";
  * full usages locally. Never sent: code, snippets, file names, line numbers, the repo name, .vitasta.yml.
  */
 import { daysBetween, findImpacts, loadFeed, matches } from "./match.js";
-import { normalizeModel, PROVIDERS } from "../providers.js";
+import { createRequire } from "node:module";
+import { azureFamily, bedrockModel, normalizeModel, PROVIDERS } from "../providers.js";
+import { redactSecrets } from "../redact.js";
 import type { ApiMap, ChangeRecord, Usage } from "../types.js";
 
 export const LOOKUP_URL = process.env.VITASTA_API ?? "https://app.vitasta.dev/v1/lookup";
@@ -25,13 +27,42 @@ export type QueryUsage = Pick<Usage, "provider" | "kind" | "model" | "op" | "api
 // Captured at load, before any repo's .vitasta.yml can register providers of its own
 const BUILT_IN = new Map(PROVIDERS.map((p) => [p.id, p]));
 
-/** A public model ID of some built-in provider, or undefined. */
-export function publicModel(raw: string): string | undefined {
+const MODEL_WORDS = new Set<string>((createRequire(import.meta.url)("../data/model-words.json") as { words: string[] }).words);
+
+/**
+ * Every word in the ID (a run of three or more letters) is one public model IDs use: a name made up by a
+ * customer (a deployment called gpt-4o-contoso-prod) has words that aren't (review F5)
+ */
+export function catalogLike(model: string): boolean {
+  // Every run of three or more letters (llama in llama3, instruct, contoso) must be a public model word
+  return (model.toLowerCase().match(/[a-z]{3,}/g) ?? []).every((w) => MODEL_WORDS.has(w));
+}
+
+/** Looks like a key or token (sk-…, a long random run): never sent, whatever pattern it matched */
+const secretLike = (m: string) => redactSecrets(m) !== m || /(^|[^a-z])sk-/i.test(m) || /[A-Za-z0-9]{24,}/.test(m.replace(/[-._:@/]/g, " ").replace(/\b\d+\b/g, ""));
+
+/**
+ * A public model ID of some built-in provider, or undefined: only IDs made of public model words and version tokens,
+ * never anything that looks like a secret (review F5: Azure deployment names and codenames were sent).
+ */
+export function publicModel(raw: string, host?: string): string | undefined {
+  const m = publicModelId(raw);
+  if (!m || secretLike(m)) return undefined;
+  // Every ID the feed has records for is made of these words (a test checks), so this drops only names a customer made
+  // up: deployment names on Azure, internal codenames. host is kept for callers; the rule is the same everywhere
+  void host;
+  if (!catalogLike(m)) return undefined;
+  return m;
+}
+
+function publicModelId(raw: string): string | undefined {
   let m = normalizeModel(raw);
   const ft = /^ft:([^:]+):/.exec(m); // OpenAI fine-tunes: ft:<base>:<org>:<name>:<id>
   if (ft) m = ft[1];
   if (m.length > LIMITS.field) return undefined;
   for (const p of BUILT_IN.values()) if (p.modelPattern.test(m) || p.publicModelPattern?.test(m.toLowerCase())) return m;
+  // Partner vendors' catalog IDs on Azure and Bedrock (src/data/partner-models.json) are public names too
+  if (bedrockModel(m) || azureFamily(m)) return m;
   return undefined;
 }
 
@@ -54,7 +85,7 @@ export function queryOf(usages: Usage[]): QueryUsage[] {
     // Reached through something that isn't the provider's API: no retirement of the provider's applies
     if (u.via) continue;
     const q: QueryUsage = { provider: u.provider, kind: u.kind };
-    const model = u.model ? publicModel(u.model) : undefined;
+    const model = u.model ? publicModel(u.model, u.host) : undefined;
     if (model) q.model = model;
     const op = u.op ? maskOp(u.op) : undefined;
     if (op) q.op = op;
@@ -162,8 +193,12 @@ export function remoteSource(url = LOOKUP_URL, fetchImpl: typeof fetch = fetch):
     if (!res.ok) throw new LookupError(`the lookup service answered ${res.status}.`);
     let data: { records?: unknown; upcoming?: unknown };
     try {
-      data = (await res.json()) as typeof data;
-    } catch {
+      // At most 5 MB: an answer is a few hundred records
+      const buf = await res.arrayBuffer();
+      if (buf.byteLength > 5 * 1024 * 1024) throw new LookupError("the lookup service sent more than 5 MB; not read.");
+      data = JSON.parse(Buffer.from(buf).toString("utf8")) as typeof data;
+    } catch (e) {
+      if (e instanceof LookupError) throw e;
       throw new LookupError(`the lookup service sent something that isn't JSON (a captive portal or proxy?).`);
     }
     return { records: validRecords(data.records), upcoming: validRecords(data.upcoming) };
@@ -179,7 +214,7 @@ export function remoteSource(url = LOOKUP_URL, fetchImpl: typeof fetch = fetch):
       return [...new Map(out.map((c) => [c.id, c])).values()];
     },
     forModels: async (models) => {
-      const ids = [...new Set(models.map(publicModel).filter((m): m is string => !!m))];
+      const ids = [...new Set(models.map((m) => publicModel(m)).filter((m): m is string => !!m))];
       const out: ChangeRecord[] = [];
       for (let i = 0; i < ids.length; i += LIMITS.models) out.push(...((await post({ models: ids.slice(i, i + LIMITS.models) })).records ?? []));
       return [...new Map(out.map((c) => [c.id, c])).values()];
@@ -212,7 +247,8 @@ const WORD = /^[\w.:@/*+-]{1,120}$/;
 /** No control characters or bidirectional overrides, trimmed and capped */
 function cleanText(v: unknown, max: number): string | undefined {
   if (typeof v !== "string") return undefined;
-  const s = v.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, " ").replace(/\s+/g, " ").trim();
+  // Control, format (zero-width, bidi, tag characters), private-use and unassigned characters: they can hide text
+  const s = v.replace(/[\p{Cc}\p{Cf}\p{Co}\p{Cn}]/gu, " ").replace(/\s+/g, " ").trim();
   return s ? s.slice(0, max) : undefined;
 }
 
