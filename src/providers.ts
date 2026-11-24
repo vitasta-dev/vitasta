@@ -37,6 +37,24 @@ export interface ProviderDef {
   urlVersion?: RegExp;
   /** The urlVersion path is this provider's alone, so a URL counts even when its host is a variable (built-in only) */
   urlVersionStandsAlone?: boolean;
+  /** v9: SDK paths that run locally and never call the API (signature checks, error classes) */
+  localOps?: RegExp;
+  /** v7: hosts that count only for a versioned URL (a login dialog on the provider's website), never as API calls */
+  versionOnlyHosts?: string[];
+  /** v7: the exact shape of a version token ("v14.0", "2026-10"), for versions written outside a full URL */
+  versionToken?: RegExp;
+  /**
+   * v10: SDK calls and settings that pin the API version, in any language (Stripe::setApiVersion('…'),
+   * Stripe.api_version = '…', StripeVersion = "…", GraphAPI(version='3.1'), Version.VERSION_19_0). The first capture
+   * is the version; `fmt` rewrites the captures into the feed's form; `needs` is a word the file must contain.
+   */
+  versionSetters?: { re: RegExp; fmt?: (m: RegExpExecArray) => string; needs?: RegExp; ident?: boolean }[];
+  /** v14: a versioned path that counts only after one of the hosts (Shopify Storefront: myshopify.com/api/2025-01/) */
+  hostUrlVersion?: RegExp;
+  /** v7: words in a file or path that tie code to this provider (hosts, product names) */
+  versionEvidence?: RegExp;
+  /** v7: words on a line that point to another API with the same version shape (Threads' v1.0 isn't Graph's) */
+  notEvidence?: RegExp;
   /** Turns an SDK version constant into the version string, e.g. ApiVersion.July25 → 2025-07 */
   versionConst?: (text: string) => string | undefined;
   /** Extra words that mark a file as possibly using this provider (for the fast file filter) */
@@ -46,6 +64,12 @@ export interface ProviderDef {
    * API is the /vNN.0/act_… part of graph.facebook.com). Checked before host-only providers.
    */
   pathPattern?: RegExp;
+  /**
+   * A provider whose versions never outlive another's (Meta's Marketing API versions expire no later than the same Graph
+   * API version): when this provider has no sunset record for a version, that provider's record for it is an upper
+   * bound on the date ("by then at the latest"). Blind v18.0 Marketing URLs matched no record.
+   */
+  versionFallback?: string;
   /**
    * Model IDs safe to send to the lookup service (public IDs only), when modelPattern is too narrow or unset.
    * Tested on the lower-cased ID. Never used to decide that a loose string is a model.
@@ -80,7 +104,8 @@ const snakeCase = (s: string) => s.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowe
 function stripeOp(callPath: string): string | undefined {
   const parts = callPath.replace(/^v\d+\./, "").split(".");
   if (parts.length < 2) return undefined;
-  const verb = parts.pop()!;
+  // v13: create_async (Python), CreateAsync (C#) are the same operation
+  const verb = parts.pop()!.replace(/_async$|Async$/, "");
   const res = parts.map((p) => {
     const s = snakeCase(p);
     // Python class style: PaymentIntent → payment_intents
@@ -148,6 +173,7 @@ export const PROVIDERS: ProviderDef[] = [
       "embeddings.create": "POST /v1/embeddings",
       "images.generate": "POST /v1/images/generations",
       "audio.transcriptions.create": "POST /v1/audio/transcriptions",
+      "audio.translations.create": "POST /v1/audio/translations",
       "audio.speech.create": "POST /v1/audio/speech",
       "moderations.create": "POST /v1/moderations",
       "models.list": "GET /v1/models",
@@ -237,8 +263,19 @@ export const PROVIDERS: ProviderDef[] = [
     clientClasses: ["Stripe", "StripeClient"],
     packages: { ts: ["stripe"], js: ["stripe"], py: ["stripe"], java: ["com.stripe:stripe-java"], go: ["github.com/stripe/stripe-go"], rb: ["stripe"], php: ["stripe/stripe-php"], cs: ["Stripe.net"] },
     hosts: ["api.stripe.com"],
+    // Local helpers and the SDK's own setup (\Stripe\Stripe::setApiKey, Stripe::StripeClient.new, StripeConfiguration)
+    localOps: /^(webhooks|errors|Webhook|Error|StripeError|Stripe|StripeClient|StripeConfiguration|Util|util)\./i,
     versionHeaders: ["stripe-version"],
     versionKeys: ["apiVersion", "api_version", "stripe_version"],
+    versionSetters: [
+      // Ruby / Python: Stripe.api_version = '…'; PHP: \Stripe\Stripe::setApiVersion('…'); Java: setStripeVersionOverride("…")
+      { re: /\bstripe\.api_version\s*=\s*["'](\d{4}-\d{2}-\d{2}(?:\.\w+)?)["']/i },
+      { re: /\bsetApiVersion\(\s*["'](\d{4}-\d{2}-\d{2}(?:\.\w+)?)["']/, needs: /stripe/i },
+      { re: /\bsetStripeVersionOverride\(\s*"(\d{4}-\d{2}-\d{2}(?:\.\w+)?)"/ },
+      // C#: new RequestOptions { StripeVersion = "…" }; Python: StripeClient(…, stripe_version="…")
+      { re: /\bStripeVersion\s*=\s*"(\d{4}-\d{2}-\d{2}(?:\.\w+)?)"/ },
+      { re: /\bstripe_version\s*[=:]\s*["'](\d{4}-\d{2}-\d{2}(?:\.\w+)?)["']/ },
+    ],
     modelPattern: NEVER,
     sdkOps: {},
     opFor: stripeOp,
@@ -269,10 +306,22 @@ export const PROVIDERS: ProviderDef[] = [
     clientClasses: ["shopifyApi", "createAdminApiClient", "Shopify", "Session"],
     packages: { ts: ["@shopify/shopify-api", "@shopify/admin-api-client", "shopify-api-node"], js: ["@shopify/shopify-api", "@shopify/admin-api-client", "shopify-api-node"], py: ["ShopifyAPI"], rb: ["shopify_api"], php: ["shopify/shopify-api"] },
     hosts: ["myshopify.com"],
-    versionHeaders: [],
+    versionHeaders: ["x-shopify-api-version"],
     versionKeys: ["apiVersion", "api_version"],
+    // Python: shopify.Session(shop_url, '2024-10', token): the version is the second positional argument
+    versionSetters: [
+      { re: /\bSession\(\s*[^,()]+,\s*["'](\d{4}-\d{2})["']/, needs: /shopify/i },
+      // v13: the SDK enum's names (ApiVersion.July25 → 2025-07), wherever they're used (codegen configs too)
+      { re: /\bApiVersion\.(January|April|July|October)(\d{2})\b/, fmt: (m) => `20${m[2]}-${({ January: "01", April: "04", July: "07", October: "10" } as Record<string, string>)[m[1]]}`, needs: /shopify/i },
+    ],
     urlVersion: /\/admin\/api\/(\d{4}-\d{2})\//,
     urlVersionStandsAlone: true,
+    // v14: the Storefront API (https://{shop}.myshopify.com/api/2025-01/graphql.json) shares the Admin API's versions
+    hostUrlVersion: /myshopify\.com\/api\/(\d{4}-\d{2})\//,
+    versionToken: /^\d{4}-(01|04|07|10)$/,
+    versionEvidence: /myshopify|shopify|storefront|customer[-_ ]?account/i,
+    // The Partner API has its own versions and no record yet: not the Admin API's
+    notEvidence: /partner/i,
     versionConst: shopifyVersionConst,
     modelPattern: NEVER,
     sdkOps: {},
@@ -283,9 +332,38 @@ export const PROVIDERS: ProviderDef[] = [
     // The Business SDKs belong to the Marketing API (providers/meta-marketing.json), whose versions expire sooner
     packages: { rb: ["koala"] },
     hosts: ["graph.facebook.com", "graph.instagram.com"],
+    // v14: libraries whose files carry no Graph host (fbgraph's setVersion, whatsapp-api-js, messaging-api-messenger)
+    keywords: ["fbgraph", "WhatsAppAPI", "MessengerClient", "passport-facebook", "FacebookProvider", "import facebook\\b", "from facebook import", "facebook_business", "facebook-nodejs-business-sdk", "FacebookAdsApi", "GraphAPI\\("],
+    // www.facebook.com/vNN.N/dialog/oauth: the login dialog follows Graph's versions; the site's other pages aren't the API
+    versionOnlyHosts: ["www.facebook.com", "facebook.com", "m.facebook.com"],
     versionHeaders: [],
     versionKeys: ["api_version", "apiVersion", "version"],
     urlVersion: /\/(v\d+\.\d+)\//,
+    // v15: two-digit minors too (v2.10, v2.11, v2.12 are Graph versions)
+    versionToken: /^v\d{1,2}\.\d{1,2}$/,
+    // v12: env-var prefixes apps use for Meta settings (WA_BUSINESS_VERSION, FB_GRAPH_VERSION, IG_API_VERSION, GRAPH_API_VERSION)
+    // A bare GRAPH_API_VERSION isn't evidence: Microsoft Graph uses the same name
+    versionEvidence: /graph\.facebook\.com|graph\.instagram\.com|facebook|instagram|whatsapp|messenger|\bFB\.init\b|fbAsyncInit|\bkoala\b|restfb|\b(?:WA|FB|IG|WABA|META)_\w*VERSION/i,
+    // Threads; and Microsoft Graph (its host, SDKs, Outlook, and its signature version pair 'v1.0' + 'beta')
+    notEvidence: /threads|graph\.microsoft\.com|msgraph|microsoft[-_ ]?graph|outlook|office365|\bazure\b|["'`]beta["'`]/i,
+    versionSetters: [
+      // Python facebook-sdk: GraphAPI(access_token, version='3.1'); restfb: Version.VERSION_19_0; Koala.config.api_version = '…'
+      { re: /\bGraphAPI\([^)]*\bversion\s*=\s*["'](\d+\.\d+)["']/, fmt: (m) => `v${m[1]}`, needs: /facebook/i },
+      // v15: the same with the version in a name (GraphAPI(token, version=GRAPH_API_VERSION))
+      { re: /\bGraphAPI\([^)]*\bversion\s*=\s*([A-Za-z_][\w.]*)\s*[,)]/, ident: true, needs: /facebook/i },
+      { re: /\bVersion\.VERSION_(\d+)_(\d+)\b/, fmt: (m) => `v${m[1]}.${m[2]}`, needs: /restfb/ },
+      { re: /\bKoala\.config\.api_version\s*=\s*["'](v\d+\.\d+)["']/ },
+      // v14: fbgraph's graph.setVersion('7.0')
+      { re: /\b[A-Za-z_$][\w$]*\.setVersion\(\s*["']v?(\d+\.\d+)["']/, fmt: (m) => `v${m[1]}`, needs: /fbgraph/ },
+      // v12: library options that set the version (whatsapp-api-js { v }, messaging-api-messenger { version })
+      { re: /\bnew\s+WhatsAppAPI\s*\(\s*\{[^}]*\bv\s*:\s*["'`](v\d+\.\d+)["'`]/ },
+      // v14: the same options set from a constant (v: WA_VERSION): resolved through the name's binding
+      { re: /\bnew\s+WhatsAppAPI\s*\(\s*\{[^}]*\bv\s*:\s*([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?)\s*[,}]/, ident: true },
+      { re: /\bMessengerClient(?:\.connect)?\s*\(\s*\{[^}]*\bversion\s*:\s*([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?)\s*[,}]/, ident: true },
+      // the JS SDK: FB.init({ version: Constants.META_GRAPH_VERSION }), the name resolved through its import like any constant
+      { re: /\bFB\.init\s*\(\s*\{[^}]*\bversion\s*:\s*([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?)\s*[,}]/, ident: true },
+      { re: /\bMessengerClient(?:\.connect)?\s*\(\s*\{[^}]*\bversion\s*:\s*["'`]v?(\d+\.\d+)["'`]/, fmt: (m) => `v${m[1]}` },
+    ],
     modelPattern: NEVER,
     sdkOps: {},
   },
@@ -318,10 +396,16 @@ export interface ProviderSpec {
   stripPrefix?: string;
   /** Regex source with one capture group for the version in a URL, e.g. "/api/v(\\d+)/" */
   urlVersion?: string;
+  /** v13: regex sources for versions outside a full URL (see ProviderDef.versionToken / versionEvidence / notEvidence) */
+  versionToken?: string;
+  versionEvidence?: string;
+  notEvidence?: string;
   versionConstRule?: keyof typeof VERSION_CONST_RULES;
   keywords?: string[];
   /** Regex source; see ProviderDef.pathPattern (built-in providers only) */
   pathPattern?: string;
+  /** See ProviderDef.versionFallback */
+  versionFallback?: string;
   /** Regex source; see ProviderDef.publicModelPattern (built-in providers only) */
   publicModelPattern?: string;
 }
@@ -354,9 +438,13 @@ export function providerFromSpec(spec: ProviderSpec): ProviderDef {
     opFor: spec.opRule ? OP_RULES[spec.opRule] : spec.opTemplate ? templateOp(spec.opTemplate) : undefined,
     stripPrefix: spec.stripPrefix ? new RegExp(spec.stripPrefix) : undefined,
     urlVersion: spec.urlVersion ? new RegExp(spec.urlVersion) : undefined,
+    versionToken: spec.versionToken ? new RegExp(spec.versionToken) : undefined,
+    versionEvidence: spec.versionEvidence ? new RegExp(spec.versionEvidence, "i") : undefined,
+    notEvidence: spec.notEvidence ? new RegExp(spec.notEvidence, "i") : undefined,
     versionConst: spec.versionConstRule ? VERSION_CONST_RULES[spec.versionConstRule] : undefined,
     keywords: spec.keywords,
     pathPattern: spec.pathPattern ? new RegExp(spec.pathPattern) : undefined,
+    versionFallback: spec.versionFallback,
     publicModelPattern: spec.publicModelPattern ? new RegExp(spec.publicModelPattern) : undefined,
   };
 }
@@ -483,9 +571,17 @@ export function providerById(id: string): ProviderDef | undefined {
   return PROVIDERS.find((p) => p.id === id);
 }
 
+/** v10: an AI provider (it has model IDs): its calls and params belong to the AI module */
+export function isAiProvider(id: string): boolean {
+  const p = providerById(id);
+  return !!p && p.modelPattern.source !== NEVER.source;
+}
+
 /** Map an SDK call path to an HTTP operation: table (longest prefix wins), then the provider's naming rule. */
 export function sdkOp(provider: ProviderDef, callPath: string): string | undefined {
   const path = provider.stripPrefix ? callPath.replace(provider.stripPrefix, "") : callPath;
+  // v9: helpers the SDK runs locally (Stripe's webhooks.constructEvent) aren't API operations
+  if (provider.localOps?.test(path)) return undefined;
   if (Object.prototype.hasOwnProperty.call(provider.sdkOps, path)) return provider.sdkOps[path];
   let best: string | undefined;
   for (const key of Object.keys(provider.sdkOps)) {
@@ -496,9 +592,21 @@ export function sdkOp(provider: ProviderDef, callPath: string): string | undefin
   return best ? provider.sdkOps[best] : provider.opFor?.(path);
 }
 
+/**
+ * v9: for a receiver merely named after a naming-rule provider (`$this->stripe->…`, `stripe.…` from another module),
+ * the call must look like the SDK's: resource names without underscores and an operation verb
+ */
+const SDK_VERB = /^(create|retrieve|update|del|delete|list|all|search|cancel|confirm|capture|attach|detach|expire|finalize\w*|pay|void\w*|send\w*|mark\w*|verify\w*|apply\w*|approve|reject|resume|pause|close|reopen|refund|reverse|createReversal|list\w+|retrieve\w+|create\w+|update\w+|delete\w+|del\w+|auto_paging_iter|listAutoPaging)$/;
+export function looksLikeSdkPath(callPath: string): boolean {
+  const parts = callPath.split(".");
+  const verb = parts.pop()!;
+  return parts.length >= 1 && parts.every((p) => /^[A-Za-z][A-Za-z0-9]*$/.test(p)) && SDK_VERB.test(verb);
+}
+
 /** Version pinned in a request URL, e.g. Shopify /admin/api/2025-07/ or Meta /v21.0/ */
 export function urlVersionOf(provider: ProviderDef, url: string): string | undefined {
-  return provider.urlVersion?.exec(url)?.[1];
+  return provider.urlVersion?.exec(url)?.[1]
+    ?? (provider.hostUrlVersion && provider.hosts.some((h) => url.includes(h)) ? provider.hostUrlVersion.exec(url)?.[1] : undefined);
 }
 
 /** Which provider's API does this URL point at, and what is the path? */
@@ -556,12 +664,16 @@ export function mentionsRouter(source: string): boolean {
       p.publicModelPattern &&
       (p.hosts.some((h) => h && source.includes(h)) ||
         // A package named in an import or require ("@openrouter/sdk", import openrouter), not a word in a comment
-        Object.values(p.packages).flat().some((w) => !!w && ([`"${w}"`, `'${w}'`, `"${w}/`, `'${w}/`].some((q) => source.includes(q)) || new RegExp(`^\\s*(?:from|import)\\s+${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "m").test(source)))),
+        Object.values(p.packages).flat().some((w) => !!w && ([`"${w}"`, `'${w}'`, `"${w}/`, `'${w}/`].some((q) => source.includes(q)) || new RegExp(`^[ \\t]*(?:from|import)\\s+${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "m").test(source)))),
   );
 }
 
 /** A model ID as written in code, with any route prefix taken off: which provider, which model, which host. */
 export function modelRef(raw: string, routerFile = false): { provider: ProviderDef; model: string; host?: Host; prefixed: boolean } | undefined {
+  // a config placeholder's default (Spring "${llm.model:gpt-4o}", application.yml ${LLM_MODEL:gpt-4.1}, ${VAR:-x}) is
+  // the model the app uses when nothing sets the key
+  const ph = /^\$\{[\w.\-\[\]]+:-?([^{}$]+)\}$/.exec(raw.trim());
+  if (ph) return modelRef(ph[1].trim(), routerFile);
   const direct = modelProvider(raw);
   if (direct) return { provider: direct, model: raw, prefixed: false };
   if (routerFile) return undefined;
@@ -578,4 +690,15 @@ export function modelRef(raw: string, routerFile = false): { provider: ProviderD
   if (!p) return undefined;
   const host = ROUTE_PREFIXES[m[1]] ?? hostOfModel(m[2]);
   return { provider: p, model: m[2], ...(host ? { host } : {}), prefixed: true };
+}
+
+/**
+ * Names of AI model vendors the scanner knows: its own providers and the partner vendors on Bedrock and Azure
+ * (src/data/partner-models.json), lowercased. Used to tell one vendor's code from another's (src/scan/vendors.ts).
+ */
+export function vendorNames(): Set<string> {
+  const out = new Set<string>(PROVIDERS.filter((p) => isAiProvider(p.id)).map((p) => p.id));
+  for (const [k, v] of Object.entries(PARTNERS.bedrock.namespaces)) { out.add(k.toLowerCase()); out.add(v.toLowerCase()); }
+  for (const f of PARTNERS.azure.families) out.add(f.provider.toLowerCase());
+  return out;
 }

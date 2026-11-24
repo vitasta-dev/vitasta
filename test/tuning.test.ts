@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { findImpacts } from "../src/feed/match.js";
-import { scanRepo } from "../src/scan/index.js";
+import { scanRepo } from "./helpers/legacy-scan.js";
 import type { Change } from "../src/types.js";
 
 const scan = () => scanRepo(resolve(import.meta.dirname, "fixtures/tuning"));

@@ -1,0 +1,2709 @@
+{
+  "_about": "What @ai-sdk/anthropic does with temperature, top_p and top_k before a request leaves the app, by release. Read from the package's published dist (npm, Apache-2.0, Copyright 2023 Vercel, Inc.) at each release in `seen`, by bisecting between releases whose outcome differs; 23 Nov 2026. A version between two read releases with the same outcome is taken to have it too. Rules are the release's own model-id tests in first-match order (`includes`: a substring, `regex`: a pattern); `rejects` means the release drops the three settings with an 'unsupported' warning for that model. `unknownClaudeRejects`: a claude- id no rule matches is treated as rejecting them too. `dropsRejected` false: everything is sent.",
+  "package": "@ai-sdk/anthropic",
+  "npm": "https://www.npmjs.com/package/@ai-sdk/anthropic",
+  "settings": [
+    "temperature",
+    "top_p",
+    "top_k"
+  ],
+  "ranges": [
+    {
+      "major": 1,
+      "from": "1.0.0",
+      "to": "1.2.12",
+      "seen": [
+        "1.0.0",
+        "1.2.12"
+      ],
+      "dropsRejected": false,
+      "unknownClaudeRejects": false,
+      "rules": [],
+      "sources": [
+        "1.0.0: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "1.2.12: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 2,
+      "from": "2.0.0",
+      "to": "2.0.74",
+      "seen": [
+        "2.0.0",
+        "2.0.39",
+        "2.0.57",
+        "2.0.71",
+        "2.0.74"
+      ],
+      "dropsRejected": false,
+      "unknownClaudeRejects": false,
+      "rules": [],
+      "sources": [
+        "2.0.0: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.39: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.57: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.71: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.74: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 2,
+      "from": "2.0.75",
+      "to": "2.0.79",
+      "seen": [
+        "2.0.75",
+        "2.0.76",
+        "2.0.78",
+        "2.0.79"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": false,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-4-7"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-",
+            "claude-3-7-sonnet"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-5-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        }
+      ],
+      "sources": [
+        "2.0.75: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.76: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.78: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.79: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 2,
+      "from": "2.0.80",
+      "to": "2.0.80",
+      "seen": [
+        "2.0.80"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": false,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-",
+            "claude-3-7-sonnet"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-5-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        }
+      ],
+      "sources": [
+        "2.0.80: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 2,
+      "from": "2.0.81",
+      "to": "2.0.84",
+      "seen": [
+        "2.0.81",
+        "2.0.82",
+        "2.0.84"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": false,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-fable-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-",
+            "claude-3-7-sonnet"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-5-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        }
+      ],
+      "sources": [
+        "2.0.81: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.82: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.84: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 2,
+      "from": "2.0.85",
+      "to": "2.0.89",
+      "seen": [
+        "2.0.85",
+        "2.0.86",
+        "2.0.89"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": false,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-fable-5",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-",
+            "claude-3-7-sonnet"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-5-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        }
+      ],
+      "sources": [
+        "2.0.85: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.86: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.89: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 2,
+      "from": "2.0.90",
+      "to": "2.0.90",
+      "seen": [
+        "2.0.90"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-fable-5",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-",
+            "claude-3-7-sonnet"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-5-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "2.0.90: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 2,
+      "from": "2.0.91",
+      "to": "2.0.100",
+      "seen": [
+        "2.0.91",
+        "2.0.93",
+        "2.0.96",
+        "2.0.99",
+        "2.0.100"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-fable-5",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-",
+            "claude-3-7-sonnet"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "2.0.91: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.93: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.96: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.99: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.100: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 2,
+      "from": "2.0.101",
+      "to": "2.0.102",
+      "seen": [
+        "2.0.101",
+        "2.0.102"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-fable-5-1",
+            "claude-fable-5",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-",
+            "claude-3-7-sonnet"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "2.0.101: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.102: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 2,
+      "from": "2.0.103",
+      "to": "2.0.106",
+      "seen": [
+        "2.0.103",
+        "2.0.105",
+        "2.0.106"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5-1"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-",
+            "claude-3-7-sonnet"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "2.0.103: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.105: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.106: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 2,
+      "from": "2.0.107",
+      "to": "2.0.108",
+      "seen": [
+        "2.0.107",
+        "2.0.108"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-sonnet-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5-1"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-",
+            "claude-3-7-sonnet"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "2.0.107: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.108: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 2,
+      "from": "2.0.109",
+      "to": "2.0.113",
+      "seen": [
+        "2.0.109",
+        "2.0.111",
+        "2.0.113"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-sonnet-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-haiku-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5-1"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-",
+            "claude-3-7-sonnet"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "2.0.109: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.111: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.113: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 2,
+      "from": "2.0.114",
+      "to": "2.0.115",
+      "seen": [
+        "2.0.114",
+        "2.0.115"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-sonnet-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-haiku-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5-1",
+            "claude-fable-5-2"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-",
+            "claude-3-7-sonnet"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "2.0.114: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "2.0.115: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 3,
+      "from": "3.0.0",
+      "to": "3.0.69",
+      "seen": [
+        "3.0.0",
+        "3.0.69"
+      ],
+      "dropsRejected": false,
+      "unknownClaudeRejects": false,
+      "rules": [],
+      "sources": [
+        "3.0.0: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.69: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 3,
+      "from": "3.0.70",
+      "to": "3.0.80",
+      "seen": [
+        "3.0.70",
+        "3.0.78",
+        "3.0.80"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": false,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-4-7"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        }
+      ],
+      "sources": [
+        "3.0.70: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.78: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.80: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 3,
+      "from": "3.0.81",
+      "to": "3.0.81",
+      "seen": [
+        "3.0.81"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": false,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        }
+      ],
+      "sources": [
+        "3.0.81: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 3,
+      "from": "3.0.82",
+      "to": "3.0.90",
+      "seen": [
+        "3.0.82",
+        "3.0.87",
+        "3.0.89",
+        "3.0.90"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": false,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-fable-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        }
+      ],
+      "sources": [
+        "3.0.82: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.87: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.89: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.90: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 3,
+      "from": "3.0.91",
+      "to": "3.0.100",
+      "seen": [
+        "3.0.91",
+        "3.0.96",
+        "3.0.100"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": false,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-fable-5",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        }
+      ],
+      "sources": [
+        "3.0.91: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.96: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.100: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 3,
+      "from": "3.0.101",
+      "to": "3.0.101",
+      "seen": [
+        "3.0.101"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-fable-5",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "3.0.101: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 3,
+      "from": "3.0.102",
+      "to": "3.0.119",
+      "seen": [
+        "3.0.102",
+        "3.0.105",
+        "3.0.107",
+        "3.0.116",
+        "3.0.118",
+        "3.0.119"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-fable-5",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "3.0.102: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.105: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.107: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.116: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.118: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.119: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 3,
+      "from": "3.0.120",
+      "to": "3.0.124",
+      "seen": [
+        "3.0.120",
+        "3.0.121",
+        "3.0.123",
+        "3.0.124"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5-1"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "3.0.120: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.121: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.123: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.124: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 3,
+      "from": "3.0.125",
+      "to": "3.0.127",
+      "seen": [
+        "3.0.125",
+        "3.0.126",
+        "3.0.127"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-sonnet-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5-1"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "3.0.125: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.126: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.127: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 3,
+      "from": "3.0.128",
+      "to": "3.0.140",
+      "seen": [
+        "3.0.128",
+        "3.0.129",
+        "3.0.133",
+        "3.0.137",
+        "3.0.139",
+        "3.0.140"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-sonnet-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-haiku-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5-1"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "3.0.128: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.129: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.133: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.137: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.139: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.140: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 3,
+      "from": "3.0.142",
+      "to": "3.0.143",
+      "seen": [
+        "3.0.142",
+        "3.0.143"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-sonnet-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-haiku-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5-2",
+            "claude-fable-5-1"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "3.0.142: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "3.0.143: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 4,
+      "from": "4.0.0",
+      "to": "4.0.3",
+      "seen": [
+        "4.0.0",
+        "4.0.3"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": false,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-fable-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        }
+      ],
+      "sources": [
+        "4.0.0: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.3: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 4,
+      "from": "4.0.4",
+      "to": "4.0.18",
+      "seen": [
+        "4.0.4",
+        "4.0.6",
+        "4.0.12",
+        "4.0.16",
+        "4.0.17",
+        "4.0.18"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": false,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-fable-5",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        }
+      ],
+      "sources": [
+        "4.0.4: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.6: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.12: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.16: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.17: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.18: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 4,
+      "from": "4.0.19",
+      "to": "4.0.19",
+      "seen": [
+        "4.0.19"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-fable-5",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "4.0.19: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 4,
+      "from": "4.0.20",
+      "to": "4.0.48",
+      "seen": [
+        "4.0.20",
+        "4.0.22",
+        "4.0.26",
+        "4.0.39",
+        "4.0.46",
+        "4.0.47",
+        "4.0.48"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-fable-5",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "4.0.20: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.22: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.26: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.39: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.46: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.47: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.48: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 4,
+      "from": "4.0.49",
+      "to": "4.0.59",
+      "seen": [
+        "4.0.49",
+        "4.0.53",
+        "4.0.56",
+        "4.0.58",
+        "4.0.59"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-fable-5",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-sonnet-4(?:-|@)"
+          ]
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-opus-4(?:-|@)"
+          ]
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "4.0.49: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.53: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.56: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.58: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.59: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 4,
+      "from": "4.0.60",
+      "to": "4.0.66",
+      "seen": [
+        "4.0.60",
+        "4.0.63",
+        "4.0.66"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-opus-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5-1"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-sonnet-4(?:-|@)"
+          ]
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-opus-4(?:-|@)"
+          ]
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "4.0.60: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.63: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.66: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 4,
+      "from": "4.0.67",
+      "to": "4.0.74",
+      "seen": [
+        "4.0.67",
+        "4.0.73",
+        "4.0.74"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-sonnet-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5-1"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-sonnet-4(?:-|@)"
+          ]
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-opus-4(?:-|@)"
+          ]
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "4.0.67: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.73: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.74: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 4,
+      "from": "4.0.75",
+      "to": "4.0.99",
+      "seen": [
+        "4.0.75",
+        "4.0.76",
+        "4.0.80",
+        "4.0.92",
+        "4.0.93",
+        "4.0.95",
+        "4.0.98",
+        "4.0.99"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-sonnet-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-haiku-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5-1"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-sonnet-4(?:-|@)"
+          ]
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-opus-4(?:-|@)"
+          ]
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "4.0.75: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.76: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.80: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.92: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.93: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.95: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.98: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.99: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    },
+    {
+      "major": 4,
+      "from": "4.0.101",
+      "to": "4.0.107",
+      "seen": [
+        "4.0.101",
+        "4.0.102",
+        "4.0.106",
+        "4.0.107"
+      ],
+      "dropsRejected": true,
+      "unknownClaudeRejects": true,
+      "rules": [
+        {
+          "includes": [
+            "claude-sonnet-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-haiku-5-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5-2",
+            "claude-fable-5-1"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-fable-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-sonnet-5"
+          ],
+          "rejects": true
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-6",
+            "claude-opus-4-6"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-sonnet-4-5",
+            "claude-opus-4-5",
+            "claude-haiku-4-5"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [
+            "claude-opus-4-1"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-sonnet-4(?:-|@)"
+          ]
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-opus-4(?:-|@)"
+          ]
+        },
+        {
+          "includes": [
+            "claude-3-haiku"
+          ],
+          "rejects": false
+        },
+        {
+          "includes": [],
+          "rejects": false,
+          "regex": [
+            "claude-(?:instant(?:-|$)|v?2(?=$|[-.:])|3(?=$|[-.]))"
+          ]
+        }
+      ],
+      "sources": [
+        "4.0.101: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.102: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.106: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)",
+        "4.0.107: dist getModelCapabilities / runtimeRules (npm tarball, sha512 checked)"
+      ],
+      "dropsTopPWithTemperature": false
+    }
+  ]
+}

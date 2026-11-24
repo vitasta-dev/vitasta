@@ -94,6 +94,13 @@ export function queryOf(usages: Usage[]): QueryUsage[] {
     // A usage that says nothing matchable once private details are dropped isn't worth sending
     if (!q.model && !q.op && !q.apiVersion && u.kind !== "sdk") continue;
     out.set(JSON.stringify(q), q);
+    // (a version of a provider that falls back to another's dates, Meta Marketing → Graph: the same version under that
+    // provider too, so its record comes back; nothing more than the version is sent)
+    const fb = PROVIDERS.find((p) => p.id === u.provider)?.versionFallback;
+    if (fb && q.apiVersion) {
+      const f: QueryUsage = { provider: fb, kind: u.kind, apiVersion: q.apiVersion };
+      out.set(JSON.stringify(f), f);
+    }
   }
   return [...out.values()];
 }
@@ -289,6 +296,7 @@ function cleanRecord(raw: unknown): ChangeRecord | undefined {
     sdkCalls: list(s.sdkCalls, WORD),
     hosts: list(s.hosts, /^(bedrock|vertex|azure)$/) as ChangeRecord["selector"]["hosts"],
     versions: list(s.versions, /^[\w.-]{1,40}$/),
+    headers: list(s.headers, /^[a-z0-9-]{1,60}: [\w.=-]{0,80}\*?$/),
   };
   for (const k of Object.keys(selector) as (keyof typeof selector)[]) if (!selector[k]) delete selector[k];
   if (!id || !provider || !type || !effective || !title || !Object.keys(selector).length) return undefined;

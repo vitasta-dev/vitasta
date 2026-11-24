@@ -1,0 +1,71 @@
+{
+  "id": "azure-openai",
+  "hosts": [
+    "openai.azure.com",
+    "cognitiveservices.azure.com",
+    "services.ai.azure.com"
+  ],
+  "pathPattern": "^/openai/",
+  "packages": {
+    "java": [
+      "com.azure:azure-ai-openai"
+    ],
+    "cs": [
+      "Azure.AI.OpenAI"
+    ],
+    "go": [
+      "github.com/Azure/azure-sdk-for-go/sdk/ai/azopenai"
+    ]
+  },
+  "clientClasses": [
+    "AzureOpenAI",
+    "AsyncAzureOpenAI",
+    "AzureOpenAIClient",
+    "OpenAIClient",
+    "AssistantsClient"
+  ],
+  "versionKeys": [
+    "api_version",
+    "apiVersion"
+  ],
+  "urlVersion": "[?&]api-version=(\\d{4}-\\d{2}-\\d{2}(?:-preview)?)",
+  "sdkOps": {
+    "getChatCompletions": "POST /openai/deployments/{deployment}/chat/completions",
+    "getChatCompletionsStream": "POST /openai/deployments/{deployment}/chat/completions",
+    "getCompletions": "POST /openai/deployments/{deployment}/completions",
+    "getCompletionsStream": "POST /openai/deployments/{deployment}/completions",
+    "getEmbeddings": "POST /openai/deployments/{deployment}/embeddings",
+    "getImageGenerations": "POST /openai/deployments/{deployment}/images/generations",
+    "getAudioTranscription": "POST /openai/deployments/{deployment}/audio/transcriptions",
+    "getAudioTranslation": "POST /openai/deployments/{deployment}/audio/translations",
+    "createAssistant": "POST /openai/assistants",
+    "getAssistant": "GET /openai/assistants/{assistant}",
+    "listAssistants": "GET /openai/assistants",
+    "updateAssistant": "POST /openai/assistants/{assistant}",
+    "deleteAssistant": "DELETE /openai/assistants/{assistant}",
+    "createThread": "POST /openai/threads",
+    "getThread": "GET /openai/threads/{thread}",
+    "deleteThread": "DELETE /openai/threads/{thread}",
+    "createMessage": "POST /openai/threads/{thread}/messages",
+    "listMessages": "GET /openai/threads/{thread}/messages",
+    "createRun": "POST /openai/threads/{thread}/runs",
+    "getRun": "GET /openai/threads/{thread}/runs/{run}",
+    "listRuns": "GET /openai/threads/{thread}/runs",
+    "submitToolOutputsToRun": "POST /openai/threads/{thread}/runs/{run}/submit_tool_outputs",
+    "createThreadAndRun": "POST /openai/threads/runs",
+    "GetChatCompletions": "POST /openai/deployments/{deployment}/chat/completions",
+    "GetChatCompletionsStream": "POST /openai/deployments/{deployment}/chat/completions",
+    "GetCompletions": "POST /openai/deployments/{deployment}/completions",
+    "GetEmbeddings": "POST /openai/deployments/{deployment}/embeddings",
+    "GetImageGenerations": "POST /openai/deployments/{deployment}/images/generations",
+    "GetAudioTranscription": "POST /openai/deployments/{deployment}/audio/transcriptions",
+    "GetAudioTranslation": "POST /openai/deployments/{deployment}/audio/translations",
+    "GetChatCompletionsAsync": "POST /openai/deployments/{deployment}/chat/completions",
+    "GetCompletionsAsync": "POST /openai/deployments/{deployment}/completions",
+    "GetEmbeddingsAsync": "POST /openai/deployments/{deployment}/embeddings",
+    "CreateAssistant": "POST /openai/assistants",
+    "CreateThread": "POST /openai/threads",
+    "CreateRun": "POST /openai/threads/{thread}/runs",
+    "CreateMessage": "POST /openai/threads/{thread}/messages"
+  }
+}

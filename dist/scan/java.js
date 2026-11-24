@@ -35,6 +35,16 @@ export function analyzeJava(file, source, tree) {
         if (u)
             usages.push(u);
     }
+    // Apache HttpClient: new HttpPost(url) / new HttpGet("https://…")
+    for (const c of nodesOfType(tree.rootNode, "object_creation_expression")) {
+        const t = c.childForFieldName("type")?.text ?? "";
+        const m = /^(?:[\w.]+\.)?Http(Post|Get|Put|Delete|Patch)$/.exec(t);
+        if (!m)
+            continue;
+        const u = httpCall(ctx, c, m[1].toUpperCase());
+        if (u)
+            usages.push(u);
+    }
     usages.push(...modelRefs(ctx));
     return usages;
 }
@@ -252,9 +262,15 @@ function nameLine(call) {
     return n ? lineOf(n) : lineOf(call);
 }
 // ---------- HTTP, headers, loose model IDs ----------
-function httpCall(ctx, call) {
-    const name = call.childForFieldName("name")?.text ?? "";
-    if (!/^(create|uri|url|baseUrl|newBuilder)$/.test(name))
+// Calls whose first argument is a request URL: URI / builders, and Spring RestTemplate's request methods
+const URL_TAKERS = /^(create|uri|url|baseUrl|newBuilder|exchange|postForObject|postForEntity|postForLocation|getForObject|getForEntity|patchForObject|put|delete|execute)$/;
+const NAME_METHOD = { postForObject: "POST", postForEntity: "POST", postForLocation: "POST", getForObject: "GET", getForEntity: "GET", patchForObject: "PATCH", put: "PUT", delete: "DELETE" };
+function httpCall(ctx, call, fixedMethod) {
+    const name = fixedMethod ? "new" : call.childForFieldName("name")?.text ?? "";
+    if (!fixedMethod && !URL_TAKERS.test(name))
+        return undefined;
+    // (put / delete / execute are common names: only on a receiver that looks like a REST client)
+    if (/^(put|delete|execute)$/.test(name) && !/rest|template|client|http/i.test(call.childForFieldName("object")?.text ?? ""))
         return undefined;
     const arg = named(call.childForFieldName("arguments") ?? call)[0];
     const url = arg ? resolveString(ctx, arg) : undefined;
@@ -273,7 +289,8 @@ function httpCall(ctx, call) {
     while (stmt && !/statement|declaration/.test(stmt.type))
         stmt = stmt.parent;
     const text = stmt?.text ?? call.text;
-    const method = /\.(POST|post)\s*\(|"POST"/.test(text) ? "POST" : /\.(PUT|put)\s*\(/.test(text) ? "PUT" : /\.(DELETE|delete)\s*\(/.test(text) ? "DELETE" : name === "baseUrl" ? "*" : "GET";
+    const hm = /\bHttpMethod\.(POST|PUT|DELETE|PATCH|GET)\b/.exec(call.text);
+    const method = fixedMethod ?? NAME_METHOD[name] ?? hm?.[1] ?? (/\.(POST|post)\s*\(|"POST"/.test(text) ? "POST" : /\.(PUT|put)\s*\(/.test(text) ? "PUT" : /\.(DELETE|delete)\s*\(/.test(text) ? "DELETE" : name === "baseUrl" ? "*" : "GET");
     return {
         provider: hit.provider.id, kind: "http", lang: "java", file: ctx.file, line: lineOf(call),
         op: `${method} ${normalizePath(hit.path)}`, confidence: "certain", snippet: snippetOf(ctx.source, call),
@@ -283,7 +300,8 @@ function httpCall(ctx, call) {
 }
 function versionPin(ctx, call) {
     const name = call.childForFieldName("name")?.text ?? "";
-    if (!/^(header|addHeader|putHeader|setHeader|defaultHeader|putAdditionalHeader)$/.test(name))
+    // (Spring HttpHeaders.set / add too: the key must be a provider's version header, so other set(k, v) calls don't count)
+    if (!/^(header|addHeader|putHeader|setHeader|defaultHeader|putAdditionalHeader|set|add)$/.test(name))
         return undefined;
     const [k, v] = named(call.childForFieldName("arguments") ?? call);
     const key = k ? resolveString(ctx, k)?.toLowerCase() : undefined;
@@ -303,17 +321,26 @@ function modelRefs(ctx) {
     for (const s of nodesOfType(ctx.tree.rootNode, "string_literal")) {
         if (ctx.consumed.has(s.startIndex))
             continue;
-        const v = stringValue(s);
+        const raw = stringValue(s);
+        // a config placeholder's default (@Value("${llm.model:gpt-4o}")): the model when nothing sets the key; a key that
+        // names a model makes it a setting
+        const ph = raw !== undefined ? /^\$\{([\w.\-\[\]]+):-?([^{}$]+)\}$/.exec(raw.trim()) : null;
+        const v = ph ? ph[2].trim() : raw;
         const p = v !== undefined ? modelProvider(v) : undefined;
         if (!p || !v)
             continue;
-        const strict = alwaysCounts(v) || javaSetting(s);
+        // a model id given to a provider-named constructor or factory (new AnthropicGenerator("claude-…", …),
+        // OpenAiChatModel.of("gpt-4o")) is that client's model
+        const callee = s.parent?.type === "argument_list" ? s.parent.parent : undefined;
+        const calleeName = callee ? (callee.childForFieldName("type")?.text ?? callee.childForFieldName("object")?.text ?? callee.childForFieldName("name")?.text ?? "") : "";
+        const provCall = !!callee && /^(?:object_creation_expression|method_invocation)$/.test(callee.type) && /anthropic|claude|openai|gpt|gemini|mistral|cohere|bedrock|vertex/i.test(calleeName) && s.parent.namedChildren[0]?.id === s.id;
+        const strict = alwaysCounts(v) || javaSetting(s) || (!!ph && /model/i.test(ph[1])) || provCall;
         // Otherwise a model enum, array or model-shaped call counts if the repo uses the provider
-        const cand = strict ? undefined : candidateKind(s, ["string_literal"], (t) => !!modelProvider(t));
-        if (!strict && !cand)
-            continue;
+        //
+        const cand = strict ? undefined : candidateKind(s, ["string_literal"], (t) => !!modelProvider(t)) ?? "catalog";
         out.push({
             ...(cand === "listed" ? { listed: true } : {}), ...(strict ? {} : { weak: true }),
+            ...(cand === "catalog" ? { listed: true, context: "catalog", contextReason: "a model id outside a request or setting (a list, table or text)" } : {}),
             provider: p.id, kind: "model-ref", lang: "java", file: ctx.file, line: lineOf(s), model: v, confidence: "possible", snippet: snippetOf(ctx.source, s), modelSpan: { start: s.startIndex, end: s.endIndex, kind: "string" },
         });
     }
@@ -342,8 +369,25 @@ function resolveString(ctx, n, markConsumed = false) {
             if (markConsumed)
                 ctx.consumed.add(n.startIndex);
             return stringValue(n);
-        case "identifier":
+        case "identifier": {
+            // a local of the enclosing method first, its nearest declaration above (String url = "https://…"; final String
+            // runUrl = String.format(…)): one name is a different local in each method
+            let fn = n.parent;
+            while (fn && !/^(?:method_declaration|constructor_declaration|lambda_expression)$/.test(fn.type))
+                fn = fn.parent;
+            let best;
+            if (fn)
+                for (const d of nodesOfType(fn, "variable_declarator")) {
+                    if (d.childForFieldName("name")?.text !== n.text || d.startIndex >= n.startIndex)
+                        continue;
+                    if (!best || d.startIndex > best.startIndex)
+                        best = d;
+                }
+            const v = best?.childForFieldName("value");
+            if (v && v.startIndex !== n.startIndex)
+                return resolveString(ctx, v, markConsumed);
             return ctx.consts.get(n.text);
+        }
         case "binary_expression": {
             if (n.childForFieldName("operator")?.text !== "+")
                 return undefined;
@@ -361,6 +405,12 @@ function resolveString(ctx, n, markConsumed = false) {
                 return resolveString(ctx, args[1], markConsumed);
             if (name === "orElse" && args[0])
                 return resolveString(ctx, args[0], markConsumed);
+            // String.format("https://…/threads/%s/runs", id) / "https://…/%s".formatted(id): the format, %s / %d as {?}
+            const fmt = name === "format" && /^(?:String|java\.lang\.String)$/.test(n.childForFieldName("object")?.text ?? "") ? args[0] : name === "formatted" ? n.childForFieldName("object") : undefined;
+            if (fmt) {
+                const s = resolveString(ctx, fmt, markConsumed);
+                return s?.replace(/%(?:\d+\$)?[-#+ 0,(]*\d*(?:\.\d+)?[sdfxXc]/g, "{?}");
+            }
             return undefined;
         }
         default:

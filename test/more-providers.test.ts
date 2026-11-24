@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { queryOf } from "../src/feed/lookup.js";
 import { findImpacts } from "../src/feed/match.js";
-import { scanRepo } from "../src/scan/index.js";
+import { scanRepo } from "./helpers/legacy-scan.js";
 import type { ApiMap, ChangeRecord, Usage } from "../src/types.js";
 
 let map: ApiMap;
@@ -88,8 +88,11 @@ describe("OpenAI prompt objects", () => {
   };
 
   it("finds prompt={id: …} in Responses calls (Python and TypeScript)", () => {
-    const f = findImpacts(map, [record], "2026-11-17").map((x) => `${x.usage.file}:${x.usage.line}`).sort();
-    expect(f).toEqual(["prompts.py:4", "prompts.ts:5", "tutor.ts:2", "tutor.ts:3"]);
+    const fs = findImpacts(map, [record], "2026-11-17");
+    const f = fs.map((x) => `${x.usage.file}:${x.usage.line}`).sort();
+    // the constant and the call one line below are one finding: the call is its alsoLine
+    expect(f).toEqual(["prompts.py:4", "prompts.ts:5", "tutor.ts:2"]);
+    expect(fs.find((x) => x.usage.file === "tutor.ts")?.usage.alsoLines).toContain(3);
   });
 
   it("counts a quoted pmpt_ ID kept in a constant, but not pmpt_ variable names", () => {
@@ -103,7 +106,7 @@ describe("OpenAI prompt objects", () => {
 
 describe("tables and catalogs (false positives from the 30 Nov repo count)", () => {
   it("a model ID as a lookup-table key (colours, sizes, prices) isn't a use", () => {
-    // Price tables are still reported, as catalog entries with a reason, never as uses (founder, 19 Nov)
+    // Price tables are still reported, as catalog entries with a reason, never as uses
     const use = (file: string, line: number) => { const u = at(file, line); return u && !u.reason ? u : undefined; };
     expect(use("tables.ts", 2)).toBeUndefined();
     expect(use("tables.ts", 3)).toBeUndefined();

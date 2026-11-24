@@ -1,0 +1,426 @@
+{
+ "_about": "What wrapper libraries do with an app's temperature / top_p / top_k for Anthropic, by release; built from the feed's library maps (data/_langchain-anthropic-sampling.json, _langchain-anthropic-py-sampling.json, _rubyllm-anthropic-sampling.json, _litellm-anthropic-sampling.json, _springai-anthropic-sampling.json), read from each release's published package. Regenerate with tools/build_libsampling.py; don't edit by hand.",
+ "libraries": [
+  {
+   "package": "@langchain/anthropic",
+   "ecosystem": "npm",
+   "lang": [
+    "ts",
+    "js"
+   ],
+   "uses": [
+    "\\bnew\\s+ChatAnthropic(?:Messages)?\\s*\\("
+   ],
+   "anthropicOnly": true,
+   "ranges": [
+    {
+     "from": "0.0.0",
+     "to": "0.3.13",
+     "sends": {
+      "temperature": 1,
+      "top_k": -1,
+      "top_p": -1
+     },
+     "dropsFor": [],
+     "dropsWhenThinking": false
+    },
+    {
+     "from": "0.3.14",
+     "to": "0.3.34",
+     "sends": {
+      "temperature": 1,
+      "top_k": -1,
+      "top_p": -1
+     },
+     "dropsFor": [],
+     "dropsWhenThinking": true
+    },
+    {
+     "from": "1.0.0",
+     "to": "1.4.0",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": true
+    },
+    {
+     "from": "1.4.1",
+     "to": "1.5.1",
+     "sends": {},
+     "dropsFor": [
+      "claude-opus-4-7",
+      "claude-opus-4-8",
+      "claude-fable-5",
+      "claude-mythos-5",
+      "claude-mythos-preview"
+     ],
+     "dropsWhenThinking": true
+    },
+    {
+     "from": "1.5.2",
+     "to": "1.5.8",
+     "sends": {},
+     "dropsFor": [
+      "claude-opus-4-7",
+      "claude-opus-4-8",
+      "claude-opus-5",
+      "claude-fable-5",
+      "claude-mythos-5",
+      "claude-mythos-preview"
+     ],
+     "dropsWhenThinking": true
+    },
+    {
+     "from": "1.5.9",
+     "to": "1.6.6",
+     "sends": {},
+     "dropsFor": [
+      "claude-opus-4-7",
+      "claude-opus-4-8",
+      "claude-opus-5",
+      "claude-sonnet-5",
+      "claude-fable-5",
+      "claude-mythos-5",
+      "claude-mythos-preview"
+     ],
+     "dropsWhenThinking": true
+    }
+   ]
+  },
+  {
+   "package": "langchain-anthropic",
+   "ecosystem": "pypi",
+   "lang": [
+    "py"
+   ],
+   "uses": [
+    "\\bChatAnthropic\\s*\\(",
+    "\\binit_chat_model\\s*\\(\\s*(?:model\\s*=\\s*)?[\"'](?:anthropic:|claude)",
+    "\\binit_chat_model\\s*\\([^)]*model_provider\\s*=\\s*[\"']anthropic"
+   ],
+   "anthropicOnly": true,
+   "ranges": [
+    {
+     "from": "0.0.1",
+     "to": "1.7.0",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": false
+    },
+    {
+     "from": "1.7.1",
+     "to": "1.7.10",
+     "sends": {},
+     "dropsFor": [
+      "claude-fable-5"
+     ],
+     "dropsWhenThinking": false
+    },
+    {
+     "from": "1.7.11",
+     "to": "1.7.12",
+     "sends": {},
+     "dropsFor": [
+      "claude-fable-5",
+      "claude-mythos-5-2"
+     ],
+     "dropsWhenThinking": false
+    }
+   ]
+  },
+  {
+   "package": "ruby_llm",
+   "ecosystem": "gem",
+   "lang": [
+    "rb"
+   ],
+   "uses": [
+    "\\bRubyLLM\\.chat\\b",
+    "\\bRubyLLM::Chat\\.new\\b"
+   ],
+   "anthropicOnly": false,
+   "ranges": [
+    {
+     "from": "1.0.0",
+     "to": "1.6.2",
+     "sends": {
+      "temperature": 0.7
+     },
+     "dropsFor": [],
+     "dropsWhenThinking": false
+    },
+    {
+     "from": "1.6.3",
+     "to": "2.2.3",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": false
+    }
+   ]
+  },
+  {
+   "package": "litellm",
+   "ecosystem": "pypi",
+   "lang": [
+    "py"
+   ],
+   "uses": [
+    "\\blitellm\\.a?completion\\s*\\(",
+    "^\\s*(?:response\\s*=\\s*)?(?:await\\s+)?a?completion\\s*\\("
+   ],
+   "anthropicOnly": false,
+   "dropParams": "drop_params\\s*=\\s*True",
+   "ranges": [
+    {
+     "from": "0.1.0",
+     "to": "1.84.6",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": false,
+     "gate": null
+    },
+    {
+     "from": "1.84.7",
+     "to": "1.84.10",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": false,
+     "gate": {
+      "names": [
+       "fable",
+       "opus-4-7",
+       "opus-4-8",
+       "opus-4.7",
+       "opus-4.8",
+       "opus_4.7",
+       "opus_4.8",
+       "opus_4_7",
+       "opus_4_8"
+      ],
+      "ids": [
+       "claude-fable-5",
+       "claude-opus-4-7",
+       "claude-opus-4-7-20260416"
+      ],
+      "onUnsupported": "raise-unless-drop_params",
+      "temperatureOne": true
+     }
+    },
+    {
+     "from": "1.85.0",
+     "to": "1.85.4",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": false,
+     "gate": null
+    },
+    {
+     "from": "1.85.5",
+     "to": "1.85.7",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": false,
+     "gate": {
+      "names": [
+       "fable",
+       "opus-4-7",
+       "opus-4-8",
+       "opus-4.7",
+       "opus-4.8",
+       "opus_4.7",
+       "opus_4.8",
+       "opus_4_7",
+       "opus_4_8"
+      ],
+      "ids": [
+       "claude-fable-5",
+       "claude-opus-4-7",
+       "claude-opus-4-7-20260416"
+      ],
+      "onUnsupported": "raise-unless-drop_params",
+      "temperatureOne": true
+     }
+    },
+    {
+     "from": "1.86.0",
+     "to": "1.86.4",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": false,
+     "gate": null
+    },
+    {
+     "from": "1.86.5",
+     "to": "1.86.7",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": false,
+     "gate": {
+      "names": [
+       "fable",
+       "opus-4-7",
+       "opus-4-8",
+       "opus-4.7",
+       "opus-4.8",
+       "opus_4.7",
+       "opus_4.8",
+       "opus_4_7",
+       "opus_4_8"
+      ],
+      "ids": [
+       "claude-fable-5",
+       "claude-opus-4-7",
+       "claude-opus-4-7-20260416"
+      ],
+      "onUnsupported": "raise-unless-drop_params",
+      "temperatureOne": true
+     }
+    },
+    {
+     "from": "1.87.0",
+     "to": "1.87.1",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": false,
+     "gate": null
+    },
+    {
+     "from": "1.87.2",
+     "to": "1.87.5",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": false,
+     "gate": {
+      "names": [
+       "fable",
+       "opus-4-7",
+       "opus-4-8",
+       "opus-4.7",
+       "opus-4.8",
+       "opus_4.7",
+       "opus_4.8",
+       "opus_4_7",
+       "opus_4_8"
+      ],
+      "ids": [
+       "claude-fable-5",
+       "claude-opus-4-7",
+       "claude-opus-4-7-20260416"
+      ],
+      "onUnsupported": "raise-unless-drop_params",
+      "temperatureOne": true
+     }
+    },
+    {
+     "from": "1.88.0",
+     "to": "1.88.1",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": false,
+     "gate": null
+    },
+    {
+     "from": "1.88.2",
+     "to": "1.92.0",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": false,
+     "gate": {
+      "names": [
+       "fable",
+       "opus-4-7",
+       "opus-4-8",
+       "opus-4.7",
+       "opus-4.8",
+       "opus_4.7",
+       "opus_4.8",
+       "opus_4_7",
+       "opus_4_8"
+      ],
+      "ids": [
+       "claude-fable-5",
+       "claude-opus-4-7",
+       "claude-opus-4-7-20260416",
+       "claude-opus-4-8",
+       "claude-sonnet-5"
+      ],
+      "onUnsupported": "raise-unless-drop_params",
+      "temperatureOne": true
+     }
+    },
+    {
+     "from": "1.92.1",
+     "to": "1.110.2",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": false,
+     "gate": {
+      "names": [
+       "fable",
+       "opus-4-7",
+       "opus-4-8",
+       "opus-4.7",
+       "opus-4.8",
+       "opus_4.7",
+       "opus_4.8",
+       "opus_4_7",
+       "opus_4_8"
+      ],
+      "ids": [
+       "claude-fable-5",
+       "claude-fable-5-1",
+       "claude-haiku-5-5",
+       "claude-mythos-5",
+       "claude-mythos-5-1",
+       "claude-mythos-preview",
+       "claude-opus-4-7",
+       "claude-opus-4-7-20260416",
+       "claude-opus-4-8",
+       "claude-opus-5",
+       "claude-opus-5-5",
+       "claude-sonnet-5",
+       "claude-sonnet-5-5"
+      ],
+      "onUnsupported": "raise-unless-drop_params",
+      "temperatureOne": true
+     }
+    }
+   ]
+  },
+  {
+   "package": "org.springframework.ai:spring-ai-anthropic",
+   "ecosystem": "maven",
+   "lang": [
+    "java"
+   ],
+   "versionGroup": "org.springframework.ai",
+   "uses": [
+    "\\bAnthropicChatOptions\\s*\\.\\s*builder\\s*\\("
+   ],
+   "anthropicOnly": true,
+   "ranges": [
+    {
+     "from": "1.0.0",
+     "to": "1.1.8",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": false
+    },
+    {
+     "from": "2.0.0",
+     "to": "2.0.3",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": false
+    },
+    {
+     "from": "2.1.0",
+     "to": "2.1.0",
+     "sends": {},
+     "dropsFor": [],
+     "dropsWhenThinking": false,
+     "dropsAll": true
+    }
+   ]
+  }
+ ]
+}

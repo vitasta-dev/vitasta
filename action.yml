@@ -31,7 +31,7 @@ runs:
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
-        [ -f dist/cli.js ] || { echo "::error::This ref of the Vitasta action has no built scanner (dist/). Use a release tag such as vitasta-dev/vitasta@v0.1.4."; exit 1; }
+        [ -f dist/cli.js ] || { echo "::error::This ref of the Vitasta action has no built scanner (dist/). Use a release tag such as vitasta-dev/vitasta@v0.2.0."; exit 1; }
         npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
     # Inputs go through env vars, never straight into the script, so they can't inject shell commands.

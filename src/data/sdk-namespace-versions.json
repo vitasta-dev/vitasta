@@ -1,0 +1,41 @@
+{
+  "_about": "The API version an SDK writes into its import paths and namespaces (Google Ads client libraries: Google\\Ads\\GoogleAds\\V23\\Services, google.ads.googleads.v23.services). Each rule: the provider, the languages, and a regex whose first capture is the version as written. A file reports one pin per version at its first such line, with the other lines as alsoLines (src/scan/sdknamespace.ts). Read from the libraries' own published package layouts.",
+  "rules": [
+    {
+      "provider": "googleads",
+      "lang": ["php"],
+      "re": "\\bGoogle\\\\Ads\\\\GoogleAds\\\\(?:Lib\\\\)?[Vv](\\d{2})\\b",
+      "what": "use Google\\Ads\\GoogleAds\\V23\\Services\\GoogleAdsServiceClient (google-ads-php)"
+    },
+    {
+      "provider": "googleads",
+      "lang": ["py"],
+      "re": "\\bgoogle\\.ads\\.googleads\\.v(\\d{2})\\b",
+      "what": "from google.ads.googleads.v23.services.types import … (google-ads-python)"
+    },
+    {
+      "provider": "googleads",
+      "lang": ["py"],
+      "re": "\\.(?:get_service|get_type)\\s*\\([^)]*\\bversion\\s*=\\s*[\"']v(\\d{2})[\"']|GoogleAdsClient\\s*\\.\\s*load_from_\\w+\\s*\\([^)]*\\bversion\\s*=\\s*[\"']v(\\d{2})[\"']",
+      "what": "client.get_service(\"GoogleAdsService\", version=\"v23\")"
+    },
+    {
+      "provider": "googleads",
+      "lang": ["java"],
+      "re": "\\bcom\\.google\\.ads\\.googleads\\.v(\\d{2})\\b",
+      "what": "import com.google.ads.googleads.v23.services.*; (google-ads-java)"
+    },
+    {
+      "provider": "googleads",
+      "lang": ["cs"],
+      "re": "\\bGoogle\\.Ads\\.GoogleAds\\.V(\\d{2})\\b",
+      "what": "using Google.Ads.GoogleAds.V23.Services; (google-ads-dotnet)"
+    },
+    {
+      "provider": "googleads",
+      "lang": ["rb"],
+      "re": "\\bGoogle::Ads::GoogleAds::V(\\d{2})\\b|[\"']google/ads/google_ads/v(\\d{2})\\b",
+      "what": "Google::Ads::GoogleAds::V23, require 'google/ads/google_ads/v23/…' (google-ads-googleads)"
+    }
+  ]
+}

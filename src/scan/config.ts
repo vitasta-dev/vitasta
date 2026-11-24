@@ -1,6 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, join, relative } from "node:path";
-import { PROVIDERS, mentionsRouter, modelRef } from "../providers.js";
+import { PROVIDERS, matchUrl, mentionsRouter, modelRef, urlVersionOf } from "../providers.js";
 import { alwaysCounts, configKeySetting, isSettingName } from "./context.js";
 import { DATA_OWNER, NAME_LIST } from "./shapes.js";
 import type { Usage } from "../types.js";
@@ -11,7 +11,8 @@ import type { Usage } from "../types.js";
  */
 
 const CONFIG_EXT = /\.(ya?ml|json|toml|properties|ini|cfg|conf)$/i;
-const ENV_FILE = /^\.env(\..+)?$|\.env$/;
+// v13: also env.example / env.sample / env.template (no leading dot)
+const ENV_FILE = /^\.env(\..+)?$|\.env$|^env\.(example|sample|template|dist|local|development|production)$/;
 const SKIP_FILES = new Set(["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "poetry.lock", "Pipfile.lock", "composer.lock", "tsconfig.json", "jsconfig.json"]);
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", "out", ".next", "venv", ".venv", "__pycache__", "target", ".gradle", "vendor", "coverage"]);
 const MAX_BYTES = 2_000_000;
@@ -20,6 +21,10 @@ const TOKEN = /[A-Za-z0-9][\w.:@\/-]*[\w]/g;
 const DATA_PATH = /(^|\/|[-_.])(results?|outputs?|responses?|logs?|traces?|predictions?|cassettes?|recordings?|snapshots?|golden|expected|transcripts?|generations?|benchmarks?|leaderboards?|evals?|runs?|corpus|corpora|holdout|datasets?)([-_.\/]|$)/i;
 /** Keys only an API response has: a "model" near two of these is a recorded response, not a setting */
 const RESPONSE_KEY = /["']?(choices|usage|created|system_fingerprint|finish_reason|stop_reason|prompt_tokens|completion_tokens|input_tokens|output_tokens|usage_metadata|usageMetadata|candidates|modelVersion|logprobs)["']?\s*:/;
+
+import { versionConstantUsages, versionSetterUsages } from "./versions.js";
+import { urlModelConfigUsages } from "./urlmodels.js";
+import { sdkClientUsages } from "./sdkclients.js";
 
 export async function scanConfigAndNotebooks(root: string): Promise<Usage[]> {
   const out: Usage[] = [];
@@ -45,13 +50,48 @@ export async function scanConfigAndNotebooks(root: string): Promise<Usage[]> {
       // A knowledge base of retirements (dates, replacements) names models as data
       if (!isNotebook && retirementData(text)) continue;
       // An OpenAPI/Swagger spec documents request shapes; its model values are examples
-      if (!isNotebook && /^\s*["']?(openapi|swagger)["']?\s*:\s*["']?\d/m.test(text.slice(0, 2000))) continue;
+      if (!isNotebook && /^[ \t]*["']?(openapi|swagger)["']?\s*:\s*["']?\d/m.test(text.slice(0, 2000))) continue;
       // JSON/YAML a program wrote (results, recorded responses, logs) holds model names as data
       if (!isNotebook && !ENV_FILE.test(e.name) && DATA_PATH.test(rel.replace(/\.[^./]+$/, ""))) continue;
-      out.push(...(isNotebook ? notebookRefs(rel, text) : textRefs(rel, text, "config")));
+      const refs = isNotebook ? notebookRefs(rel, text) : textRefs(rel, text, "config");
+      out.push(...refs);
+      // v7: API versions in configuration (name: FACEBOOK_API_VERSION … value: 'v18.0')
+      if (!isNotebook) {
+        const consts = versionConstantUsages(rel, "config", text, refs);
+        out.push(...consts, ...configUrlVersions(rel, text, [...refs, ...consts]), ...urlModelConfigUsages(rel, text, refs));
+        // Framework settings a provider request carries (spring.ai.anthropic.chat.options.temperature)
+        out.push(...sdkClientUsages(rel, "config", text));
+      }
     }
   }
   await walk(root);
+  return out;
+}
+
+/**
+ * v14: versioned provider URLs written in configuration (authorization_url: https://www.facebook.com/v22.0/dialog/oauth,
+ * a provider catalog's token URLs): the URL itself names the API, so no other evidence is needed
+ */
+export function configUrlVersions(file: string, text: string, found: Usage[]): Usage[] {
+  if (text.length > MAX_BYTES) return [];
+  const have = new Set(found.filter((u) => u.apiVersion).map((u) => `${u.line}|${u.apiVersion!.split(": ").pop()}`));
+  const out: Usage[] = [];
+  text.split("\n").forEach((l, i) => {
+    if (l.length > 2000 || /^\s*(#|\/\/|;)/.test(l)) return;
+    for (const m of l.matchAll(/https?:\/\/[^\s"'<>`\\,)]+/g)) {
+      const probe = m[0] + "/";
+      const hit = matchUrl(probe);
+      let provider = hit?.provider.urlVersion ? hit.provider : undefined;
+      if (!hit) {
+        const host = /^https?:\/\/([^/:?#]+)/i.exec(m[0])?.[1]?.toLowerCase();
+        provider = host ? PROVIDERS.find((p) => p.urlVersion && p.versionOnlyHosts?.includes(host)) : undefined;
+      }
+      const version = provider && urlVersionOf(provider, probe);
+      if (!provider || !version || have.has(`${i + 1}|${version}`)) continue;
+      have.add(`${i + 1}|${version}`);
+      out.push({ provider: provider.id, kind: "version-pin", lang: "config", file, line: i + 1, apiVersion: `url: ${version}`, confidence: "likely", snippet: l.trim().slice(0, 200) });
+    }
+  });
   return out;
 }
 
@@ -65,7 +105,9 @@ function textRefs(file: string, text: string, lang: "config" | "notebook", lineO
     lineStart += line.length + 1;
     // A commented-out line (.env, YAML, TOML, INI, JSONC, notebook code) is not a setting
     if (/^\s*(#|\/\/|;)/.test(line)) return;
-    for (const m of line.matchAll(TOKEN)) {
+    // a placeholder's default (${LLM_MODEL:gpt-4.1}) is read as the value: its opener and closer become spaces
+    const scan = line.replace(/\$\{[\w.\-\[\]]+:-?([^{}$]*)\}/g, (m0, d) => " ".repeat(m0.length - d.length - 1) + d + " ");
+    for (const m of scan.matchAll(TOKEN)) {
       const tok = m[0];
       const ref = modelRef(tok, routed);
       if (!ref) continue;
@@ -73,12 +115,15 @@ function textRefs(file: string, text: string, lang: "config" | "notebook", lineO
       // cloud-form ID counts anywhere except as a key ("claude-…@…": 200000)
       const isKey = /^["']?\s*:/.test(line.slice((m.index ?? 0) + tok.length));
       if (lang === "config" && recordedResponse(lines, i)) continue;
-      const strict = settingAt(lines, i, line.slice(0, m.index ?? 0), lang) ?? (alwaysCounts(ref.model) && !isKey ? "setting" : undefined);
+      // (a placeholder's default, model: ${OPENAI_MODEL:gpt-4o-mini}, sits after its opener: the key is still model)
+      const before = line.slice(0, m.index ?? 0).replace(/\$\{[\w.\-\[\]]+:-?$/, "");
+      const strict = settingAt(lines, i, before, lang) ?? (alwaysCounts(ref.model) && !isKey ? "setting" : undefined);
       // Otherwise an item in a list of models, or a value in a map of models, counts if the repo uses the provider
-      const kind = strict ?? (lang === "config" && !isKey && (inModelBlock(lines, i, routed) || inEntryTable(lines, i, line.slice(0, m.index ?? 0), routed)) ? "listed" : undefined);
-      if (!kind) continue;
+      //
+      const kind = strict ?? (lang === "config" && !isKey && (inModelBlock(lines, i, routed) || inEntryTable(lines, i, line.slice(0, m.index ?? 0), routed)) ? "listed" : undefined) ?? "catalog";
       out.push({
-        ...(kind === "listed" ? { listed: true } : {}), ...(kind === "setting" ? { setting: true } : {}),
+        ...(kind === "listed" || kind === "catalog" ? { listed: true } : {}), ...(kind === "setting" ? { setting: true } : {}),
+        ...(kind === "catalog" ? { context: "catalog" as const, contextReason: "a model id outside a request or setting (a list, table or text)" } : {}),
         ...(strict ? {} : { weak: true }),
         provider: ref.provider.id, kind: "model-ref", lang, file,
         line: lineMap ? lineMap[i] : i + 1 + lineOffset,
@@ -120,16 +165,20 @@ function notebookRefs(file: string, json: string): Usage[] {
       }
       return searchFrom + 1;
     });
-    out.push(...textRefs(file, src, "notebook", 0, map));
+    const refs = textRefs(file, src, "notebook", 0, map);
+    out.push(...refs);
+    // v15: API versions in code cells too (GraphAPI(token, version='2.7'), versioned URLs), on the notebook's lines
+    const vs = [...versionSetterUsages(file, "notebook", src, []), ...configUrlVersions(file, src, [])];
+    for (const u of vs) out.push({ ...u, lang: "notebook", line: map[u.line - 1] ?? u.line });
   }
   return out;
 }
 
 /** Keys a record about a model's retirement has: retired_on, deprecation_date, shutdown, sunset, replacement */
-const RETIREMENT_KEY = /^\s*-?\s*["']?(retire\w*|deprecat\w*|shut_?down\w*|sunset\w*|end_of_life|eol(_date)?|replace(ment|d_by)\w*|successor|migrat(e|ion)_to)["']?\s*:/gim;
+const RETIREMENT_KEY = /^[ \t]*-?\s*["']?(retire\w*|deprecat\w*|shut_?down\w*|sunset\w*|end_of_life|eol(_date)?|replace(ment|d_by)\w*|successor|migrat(e|ion)_to)["']?\s*:/gim;
 
 /** A retirement key with a date: retired_on: 2026-01-05, "shutdown_date": "2026-06-30" */
-const DATED_RETIREMENT = /^\s*-?\s*["']?(retire\w*|deprecat\w*|shut_?down\w*|sunset\w*|end_of_life|eol(_date)?)["']?\s*:\s*["']?\d{4}-\d{2}(-\d{2})?/im;
+const DATED_RETIREMENT = /^[ \t]*-?\s*["']?(retire\w*|deprecat\w*|shut_?down\w*|sunset\w*|end_of_life|eol(_date)?)["']?\s*:\s*["']?\d{4}-\d{2}(-\d{2})?/im;
 
 /**
  * At least two different retirement keys, one of them dated: a file of retirement records, not a config. (A

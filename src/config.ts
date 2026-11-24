@@ -210,7 +210,7 @@ const isDate = (s: unknown) => {
   const d = new Date(`${s}T00:00:00Z`);
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === String(s);
 };
-const SELECTOR_FIELDS = ["models", "ops", "params", "sdkCalls", "hosts", "versions"] as const;
+const SELECTOR_FIELDS = ["models", "ops", "params", "sdkCalls", "hosts", "versions", "headers"] as const;
 
 /** Provider ids that ship with the scanner, read before any repo config can register its own */
 const BUILT_IN_IDS = new Set(PROVIDERS.map((p) => p.id));

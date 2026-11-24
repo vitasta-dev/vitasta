@@ -8,15 +8,21 @@
  * Deeper analysis (following SDK clients into calls) is language-specific and lives in js.ts / py.ts / java.ts.
  */
 import { PROVIDERS, matchUrl, mentionsRouter, modelRef, urlVersionOf } from "../providers.js";
-import { alwaysCounts, isFactoryCall, isSettingName } from "./context.js";
+import { alwaysCounts, isFactoryCall, isSettingName, modelFunctionReturn } from "./context.js";
 import { normalizePath } from "./js.js";
 import { lineOf, nodesOfType, snippetOf } from "./parser.js";
 const STRING_TYPES = {
     go: ["interpreted_string_literal", "raw_string_literal"],
     rb: ["string"],
     php: ["string", "encapsed_string"],
-    cs: ["string_literal", "verbatim_string_literal", "raw_string_literal"],
+    cs: ["string_literal", "verbatim_string_literal", "raw_string_literal", "interpolated_string_expression"],
 };
+/** A URL's text with its interpolations as path parameters ({?}): $"…/threads/{id}/messages", "…#{x}…", "…{$x}…" */
+function urlText(n, lang) {
+    return n.text
+        .replace(/^@?\$?@?"""|"""$/g, "").replace(/^[@$]{0,2}["'`]|["'`]$/g, "")
+        .replace(lang === "rb" ? /#\{[^}]*\}/g : lang === "php" ? /\{\$[^}]*\}|\$\w+(?:->\w+)*/g : /\{[^}]*\}/g, "{?}");
+}
 /** Text of a string literal without quotes; undefined if it interpolates variables. */
 function literalValue(n, lang) {
     const t = n.text;
@@ -59,6 +65,12 @@ function settingAt(lines, row, before) {
 /** A flag or option default: StringVar(&m, "model", "claude-…", "usage") / flag.String("model", "…") / .option("--model <id>", "…") */
 const FLAG_BEFORE = /(["'`])-{0,2}([\w.-]+)(?:\s+<[^>]*>)?\1\s*,\s*$/;
 function settingOnLine(before) {
+    // a fallback for a model value (model ?? "gpt-4o-mini", o.Model ?? "…", modelId || "…") and a C# property default
+    // (public string Model { get; set; } = "…")
+    if (/\b[\w$.]*model\w*(?:['"]\s*\])?\s*(?:\?\?=?|\|\|=?|\?:)\s*$/i.test(before))
+        return true;
+    if (/\b\w*model\w*\s*\{\s*get;\s*(?:(?:private\s+|init;?|set;)\s*)*\}\s*=\s*$/i.test(before))
+        return true;
     const flag = FLAG_BEFORE.exec(before);
     if (flag && /\(\s*(?:[^()]*,\s*)?$/.test(before.slice(0, flag.index)) && isSettingName(flag[2].replace(/[.-]/g, "_")))
         return true;
@@ -83,7 +95,22 @@ export function analyzeGeneric(file, lang, source, tree) {
     for (let i = 0; i < strings.length; i++) {
         const s = strings[i];
         const v = literalValue(s, lang);
-        if (v === undefined || !v)
+        // a URL may interpolate its ids (C# $"https://api.openai.com/v1/threads/{threadId}/messages")
+        if (v === undefined) {
+            const u = urlText(s, lang);
+            const hit = /^https?:\/\//.test(u) ? matchUrl(u) : undefined;
+            if (hit) {
+                const lt = lines[s.startPosition.row] ?? "";
+                const method = /\b(POST|Post|post|:post|MethodPost|PostAsync|http\.Post)\b/.test(lt) ? "POST" : /\b(PUT|Put|put|PutAsync)\b/.test(lt) ? "PUT" : /\b(DELETE|Delete|delete|DeleteAsync)\b/.test(lt) ? "DELETE" : /\b(GET|Get|get|GetAsync)\b/.test(lt) ? "GET" : "*";
+                const ver = urlVersionOf(hit.provider, u);
+                out.push({
+                    provider: hit.provider.id, kind: "http", lang, file, line: lineOf(s), op: `${method} ${normalizePath(hit.path)}`, confidence: "likely",
+                    snippet: snippetOf(source, s), apiVersion: ver ? `url: ${ver}` : undefined,
+                });
+            }
+            continue;
+        }
+        if (!v)
             continue;
         const row = s.startPosition.row;
         const lineText = lines[row] ?? "";
@@ -122,11 +149,11 @@ export function analyzeGeneric(file, lang, source, tree) {
             continue;
         // A cloud-form ID counts anywhere except as a map key ("claude-…@…": 200000 / "…" => …)
         const isKey = /^\s*(?::(?!=)|=>)/.test(lineText.slice(s.endPosition.column));
-        const kind = settingAt(lines, row, before) ?? (alwaysCounts(ref.model) && !isKey ? "setting" : undefined);
-        if (!kind)
-            continue;
+        //
+        const kind = settingAt(lines, row, before) ?? (alwaysCounts(ref.model) && !isKey ? "setting" : undefined) ?? (!isKey && modelFunctionReturn(lines, row, before) ? "setting" : undefined) ?? "catalog";
         out.push({
-            ...(kind === "listed" ? { listed: true } : {}), ...(kind === "setting" ? { setting: true } : {}),
+            ...(kind === "listed" || kind === "catalog" ? { listed: true } : {}), ...(kind === "setting" ? { setting: true } : {}),
+            ...(kind === "catalog" ? { context: "catalog", contextReason: "a model id outside a request or setting (a list, table or text)" } : {}),
             provider: ref.provider.id, kind: "model-ref", lang, file, line: lineOf(s),
             model: ref.model, confidence: "possible", snippet: snippetOf(source, s), ...(ref.host ? { host: ref.host } : {}),
             modelSpan: ref.prefixed ? undefined : { start: s.startIndex, end: s.endIndex, kind: "string" },

@@ -3,7 +3,8 @@
   "hosts": [
     "graph.facebook.com"
   ],
-  "pathPattern": "^/v\\d+\\.\\d+/act_",
+  "pathPattern": "^/v\\d+\\.\\d+/(?:act_|[^?#]*?\\b(?:adaccounts|adsets|ads|adcreatives|adimages|advideos|insights|customaudiences|campaigns)(?:[/?#]|$)|[^/?#]+/events\\b)",
+  "versionFallback": "meta",
   "packages": {
     "ts": [
       "facebook-nodejs-business-sdk"

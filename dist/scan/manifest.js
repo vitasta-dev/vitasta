@@ -23,7 +23,7 @@ export async function readSdkDependencies(root, manifests) {
         else if (name.startsWith("build.gradle") || name === "libs.versions.toml")
             out.push(...fromGradle(text, rel));
         else if (name === "go.mod")
-            out.push(...fromList(text, rel, "go", (pkg) => new RegExp(`^\\s*(?:require\\s+)?${escape(pkg)}(?:/v\\d+)?\\s+(v[\\w.\\-+]+)`, "m")));
+            out.push(...fromList(text, rel, "go", (pkg) => new RegExp(`^[ \\t]*(?:require\\s+)?${escape(pkg)}(?:/v\\d+)?\\s+(v[\\w.\\-+]+)`, "m")));
         else if (name === "Gemfile" || name.endsWith(".gemspec") || name === "Gemfile.lock")
             out.push(...fromList(text, rel, "rb", (pkg) => new RegExp(`(?:gem|add_(?:runtime_)?dependency)\\s*\\(?\\s*["']${escape(pkg)}["'](?:\\s*,\\s*["']([^"']+)["'])?|^\\s{4}${escape(pkg)} \\(([^)]+)\\)`, "m")));
         else if (name === "composer.json")

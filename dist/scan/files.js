@@ -7,13 +7,13 @@ const SKIP_DIRS = new Set([
 ]);
 const EXT = {
     ".ts": "ts", ".tsx": "ts", ".mts": "ts", ".cts": "ts",
-    ".js": "js", ".jsx": "js", ".mjs": "js", ".cjs": "js",
+    ".js": "js", ".jsx": "js", ".mjs": "js", ".cjs": "js", ".gs": "js",
     ".py": "py",
     ".java": "java",
     ".go": "go",
     ".rb": "rb", ".rake": "rb",
     ".php": "php",
-    ".cs": "cs",
+    ".cs": "cs", ".csx": "cs",
 };
 const MAX_FILE_BYTES = 1_000_000;
 export function langOf(file) {
@@ -54,6 +54,42 @@ export async function listSourceFiles(root) {
     await walk(root);
     return out.sort((a, b) => a.rel.localeCompare(b.rel));
 }
+/** Code in languages the scanner doesn't parse, read only for the data files it loads (roles v3, src/scan/dataflow.ts) */
+const LOADER_EXT = /\.(kt|kts|scala|groovy|gradle|rs|swift|dart|ex|exs|lua|r|sh|bash|zsh|ps1|c|cc|cpp|h|hpp|m|mm|clj|fs|vb|pl|jl)$/i;
+/** At most 3,000 files, 1 MB each, 30 MB in all: enough to find loaders, bounded on any repo */
+export async function listLoaderFiles(root) {
+    const out = [];
+    let bytes = 0;
+    async function walk(dir) {
+        if (out.length >= 3000)
+            return;
+        let entries;
+        try {
+            entries = await readdir(dir, { withFileTypes: true });
+        }
+        catch {
+            return;
+        }
+        for (const e of entries) {
+            if (out.length >= 3000 || bytes > 30_000_000)
+                return;
+            const full = join(dir, e.name);
+            if (e.isDirectory()) {
+                if (!SKIP_DIRS.has(e.name))
+                    await walk(full);
+            }
+            else if (e.isFile() && LOADER_EXT.test(e.name)) {
+                const s = await stat(full);
+                if (s.size > MAX_FILE_BYTES)
+                    continue;
+                bytes += s.size;
+                out.push(full);
+            }
+        }
+    }
+    await walk(root);
+    return out;
+}
 /** Markdown files (READMEs, docs) whose code blocks are scanned as documentation: at most 300, 1 MB each */
 export async function listDocFiles(root) {
     const out = [];
@@ -76,6 +112,39 @@ export async function listDocFiles(root) {
                     await walk(full);
             }
             else if (e.isFile() && /\.(md|mdx)$/i.test(e.name)) {
+                const s = await stat(full);
+                if (s.size <= MAX_FILE_BYTES)
+                    out.push({ path: full, rel: relative(root, full) });
+            }
+        }
+    }
+    await walk(root);
+    return out.sort((a, b) => a.rel.localeCompare(b.rel));
+}
+/** View templates and pages: their inline scripts and URLs call APIs too
+ *  (FB.init({ version: 'v2.8' }) in a layout, a Graph URL in an href) */
+const VIEW_EXT = /\.(?:erb|html?|haml|slim|ejs|hbs|handlebars|mustache|twig|jinja2?|j2|njk|liquid|cshtml|razor|jsp|gsp|vue|svelte|astro)$/i;
+export async function listViewFiles(root) {
+    const out = [];
+    async function walk(dir) {
+        if (out.length >= 3000)
+            return;
+        let entries;
+        try {
+            entries = await readdir(dir, { withFileTypes: true });
+        }
+        catch {
+            return;
+        }
+        for (const e of entries) {
+            if (out.length >= 3000)
+                return;
+            const full = join(dir, e.name);
+            if (e.isDirectory()) {
+                if (!SKIP_DIRS.has(e.name))
+                    await walk(full);
+            }
+            else if (e.isFile() && VIEW_EXT.test(e.name)) {
                 const s = await stat(full);
                 if (s.size <= MAX_FILE_BYTES)
                     out.push({ path: full, rel: relative(root, full) });

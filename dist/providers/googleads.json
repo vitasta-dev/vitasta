@@ -39,5 +39,7 @@
   "urlVersion": "/(v\\d+)/",
   "keywords": [
     "googleads"
-  ]
+  ],
+  "versionToken": "^v\\d{2}$",
+  "versionEvidence": "googleads|google[-_ ]?ads|GOOGLE_ADS"
 }

@@ -206,7 +206,7 @@ const isDate = (s) => {
     const d = new Date(`${s}T00:00:00Z`);
     return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === String(s);
 };
-const SELECTOR_FIELDS = ["models", "ops", "params", "sdkCalls", "hosts", "versions"];
+const SELECTOR_FIELDS = ["models", "ops", "params", "sdkCalls", "hosts", "versions", "headers"];
 /** Provider ids that ship with the scanner, read before any repo config can register its own */
 const BUILT_IN_IDS = new Set(PROVIDERS.map((p) => p.id));
 export const CONFIG_FILES = [".vitasta.yml", ".vitasta.yaml", ".github/vitasta.yml"];

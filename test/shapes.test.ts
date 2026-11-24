@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { scanRepo } from "../src/scan/index.js";
+import { scanRepo } from "./helpers/legacy-scan.js";
 
 const refs = async (repo: string, file: string) =>
   (await scanRepo(resolve(import.meta.dirname, "fixtures/shapes", repo))).usages

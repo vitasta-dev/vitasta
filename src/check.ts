@@ -126,11 +126,13 @@ const CONFIDENCE = { certain: 0, likely: 1, possible: 2 } as const;
 /**
  * Whether a finding may fail a PR. Never for test files or a model that's only offered in a list or type (`listed`),
  * and never when the date itself isn't solid: a feed record
- * no person has checked yet (`pending`) or one inferred only from spec diffs (`unconfirmed`).
+ * no person has checked yet (`pending`) or one inferred only from spec diffs (`unconfirmed`). Nor when the call goes
+ * to another server (`proxy`: a client whose base URL is a gateway or a local server; whether the date applies
+ * depends on what that server forwards to), or the setting is sent only when a capability check allows it (`gated`).
  */
 export function canBlock(f: Finding, failOn: Finding["status"][] = ["broken", "urgent"], minConfidence: Finding["usage"]["confidence"] = "possible"): boolean {
   // Only live code fails a check: examples, docs, tests, catalogs and recorded data never do (src/scan/roles.ts)
-  return roleFor(f.usage) === "breaks" && !f.usage.inTest && !f.usage.doc && !f.usage.listed && !f.change.pending && !f.change.unconfirmed && failOn.includes(f.status) && CONFIDENCE[f.usage.confidence] <= CONFIDENCE[minConfidence];
+  return (f.usage.tier ?? "action") === "action" && roleFor(f.usage) === "breaks" && !f.usage.gated && !f.usage.libmap && !f.usage.dead && !f.usage.proxy && !f.usage.inTest && !f.usage.doc && !f.usage.listed && !f.change.pending && !f.change.unconfirmed && failOn.includes(f.status) && CONFIDENCE[f.usage.confidence] <= CONFIDENCE[minConfidence];
 }
 
 export function evaluatePr(findings: Finding[], changed: ChangedLines, failOn: Finding["status"][] = ["broken", "urgent"], minConfidence: Finding["usage"]["confidence"] = "possible"): CheckResult {
@@ -138,11 +140,13 @@ export function evaluatePr(findings: Finding[], changed: ChangedLines, failOn: F
     const lines = changed.get(f.usage.file);
     return !!lines && (lines.has(f.usage.line) || !!f.usage.alsoLines?.some((l) => lines.has(l)));
   };
-  // What this PR touches, in live code or in code people copy (examples, docs): shown and annotated. Tests,
-  // catalogs and recorded data are in the tracking issue, not in a PR's check
-  const shown = (f: Finding) => ["breaks", "users-copy"].includes(roleFor(f.usage));
+  // What this PR touches: live code and code people copy (examples, docs), and anything else the
+  // retired thing sits in outside tests (catalogs, dead or unused code, a provider not shown): shown and annotated;
+  // only the action tier can fail. Tests and recorded data are in the tracking issue, not in a PR's check
+  const tierOf = (f: Finding) => f.usage.tier ?? (roleFor(f.usage) === "breaks" ? "action" : "also");
+  const shown = (f: Finding) => ["breaks", "users-copy"].includes(roleFor(f.usage)) || (tierOf(f) === "also" && !f.usage.inTest && !["note", "test-asserts", "test-data", "recorded"].includes(roleFor(f.usage)));
   const introduced = findings.filter((f) => touches(f) && shown(f));
-  const existing = findings.filter((f) => !introduced.includes(f) && roleFor(f.usage) === "breaks");
+  const existing = findings.filter((f) => !introduced.includes(f) && roleFor(f.usage) === "breaks" && tierOf(f) === "action");
   const blocking = introduced.filter((f) => canBlock(f, failOn, minConfidence));
   const conclusion = blocking.length ? "failure" : introduced.length || existing.length ? "neutral" : "success";
   const title = blocking.length

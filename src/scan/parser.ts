@@ -45,6 +45,29 @@ export async function parse(lang: Lang, file: string, source: string): Promise<T
   return tree;
 }
 
+/** Load the grammars for these languages now, so parseLoaded can run without waiting */
+export async function preload(langs: (Lang | "tsx")[]): Promise<void> {
+  await init();
+  for (const key of langs) {
+    if (languages.has(key)) continue;
+    languages.set(key, await Language.load(require.resolve(GRAMMARS[key])));
+  }
+}
+
+/** Parse with a grammar already loaded (see preload); undefined when it isn't */
+export function parseLoaded(lang: Lang, file: string, source: string): Tree | undefined {
+  const key = lang === "ts" && file.endsWith(".tsx") ? "tsx" : lang;
+  let parser = parsers.get(key);
+  if (!parser) {
+    const language = languages.get(key);
+    if (!language) return undefined;
+    parser = new Parser();
+    parser.setLanguage(language);
+    parsers.set(key, parser);
+  }
+  return parser.parse(source) ?? undefined;
+}
+
 /** All descendants of the given node types, skipping nulls. */
 export function nodesOfType(root: Node, types: string | string[]): Node[] {
   return root.descendantsOfType(types).filter((n): n is Node => n !== null);

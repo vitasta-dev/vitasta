@@ -1,5 +1,5 @@
 import { checkedOf, dateKindOf, partlyRetired, todayOf, todayUtc, verbOf, whenOf } from "../feed/dates.js";
-import { roleFor } from "../scan/roles.js";
+import { fixRoleFor, roleFor } from "../scan/roles.js";
 import { code, fence, text, url } from "./escape.js";
 const STATUS = {
     broken: "🔴 Broken now",
@@ -62,12 +62,19 @@ export function renderMarkdown(map, findings, repoLabel, opts) {
     // By role (src/scan/roles.ts): live code in detail; code people copy in detail too (the fix swaps it); tests,
     // catalogs and recorded data listed apart. Only live code fails a check
     const of = (...rs) => findings.filter((f) => rs.includes(roleFor(f.usage)));
-    const groups = groupFindings(of("breaks"));
-    const copyGroups = groupFindings(of("users-copy"));
-    const testAsserts = groupFindings(of("test-asserts"));
-    const testData = groupFindings(of("test-data"));
-    const catalogGroups = groupFindings(of("catalog"));
-    const recordedGroups = groupFindings(of("recorded"));
+    // two tiers. Action needed: live request sites and defaults (the only findings that can fail a
+    // check). Also in your code: catalogs, dead or unused code, a provider the request site doesn't show, docs and copies
+    const tierOf = (f) => f.usage.tier ?? (roleFor(f.usage) === "breaks" ? "action" : "also");
+    const isNote = (f) => ["note", "test-asserts", "test-data"].includes(roleFor(f.usage));
+    const groups = groupFindings(findings.filter((f) => tierOf(f) === "action" && !isNote(f)));
+    const alsoFindings = findings.filter((f) => tierOf(f) === "also" && !isNote(f));
+    const copyGroups = [];
+    // places in test files are notes, listed apart; never a break
+    const notes = findings.filter((f) => ["note", "test-asserts", "test-data"].includes(roleFor(f.usage)));
+    const testAsserts = groupFindings(notes.filter((f) => fixRoleFor(f.usage) === "test-asserts"));
+    const testData = groupFindings(notes.filter((f) => fixRoleFor(f.usage) !== "test-asserts"));
+    const catalogGroups = [];
+    const recordedGroups = [];
     const testGroups = [...testAsserts, ...testData];
     const count = (s) => groups.filter((g) => g.first.status === s);
     lines.push("| Status | Issues | Places in code |", "|---|---|---|");
@@ -76,14 +83,13 @@ export function renderMarkdown(map, findings, repoLabel, opts) {
         lines.push(`| ${STATUS[s]} | ${gs.length} | ${gs.reduce((n, g) => n + g.lines.length, 0)} |`);
     }
     lines.push("");
+    const alsoFiles = new Set(alsoFindings.map((f) => f.usage.file));
     const also = [
-        copyGroups.length ? `${copyGroups.length} in examples and docs` : "",
-        testGroups.length ? `${testGroups.length} in tests` : "",
-        catalogGroups.length ? `${catalogGroups.length} in model lists and catalogs` : "",
-        recordedGroups.length ? `${recordedGroups.length} in recorded data` : "",
+        alsoFindings.length ? `${alsoFindings.length} ${alsoFindings.length === 1 ? "place" : "places"} in ${alsoFiles.size} ${alsoFiles.size === 1 ? "file" : "files"} also in your code` : "",
+        testGroups.length ? `${testGroups.length} ${testGroups.length === 1 ? "note" : "notes"} in tests` : "",
     ].filter(Boolean);
     if (also.length)
-        lines.push(`Also ${also.join(", ")}, listed below. Only live code fails a check.`, "");
+        lines.push(`Also: ${also.join(", ")}, listed below. Only "Action needed" can fail a check.`, "");
     const detailed = (gs) => {
         for (const g of gs) {
             const f = g.first;
@@ -95,7 +101,12 @@ export function renderMarkdown(map, findings, repoLabel, opts) {
             const more = g.lines.length > 8 ? ` and ${g.lines.length - 8} more` : "";
             const times = g.lines.length > 1 ? ` (${g.lines.length} places)` : "";
             lines.push(`- **Where:** ${code(u.file)} line${g.lines.length > 1 ? "s" : ""} ${shown}${more}${times}${u.op ? ` → ${code(u.op)}` : ""}`);
+            // callers of a repo wrapper that fixes the version inside it (the same fix covers them)
+            if (u.alsoAt?.length)
+                lines.push(`- **Called from:** ${u.alsoAt.slice(0, 8).map((x) => code(x)).join(", ")}${u.alsoAt.length > 8 ? ` and ${u.alsoAt.length - 8} more` : ""}`);
             lines.push(`- **When:** ${when(f)}`);
+            if (u.datedBy)
+                lines.push(`- **Note:** this is ${u.provider === "meta-marketing" ? "a Marketing API" : `a ${u.provider}`} call, and the feed has no date for its ${u.datedBy.version} yet. Its versions end no later than ${u.datedBy.provider === "meta" ? "the Graph API" : u.datedBy.provider}'s, so this date is the latest it can stop: it may stop sooner.`);
             if (u.proxy)
                 lines.push(`- **Note:** this client talks to ${code(u.proxy)}, not ${u.provider} directly. The date applies if that server forwards to ${u.provider}.`);
             if (f.change.pending)
@@ -127,18 +138,49 @@ export function renderMarkdown(map, findings, repoLabel, opts) {
         }
     };
     if (groups.length) {
-        lines.push("## What breaks", "");
+        lines.push("## Action needed", "");
         detailed(groups);
     }
     else {
-        lines.push(also.length ? "Nothing in live code." : "No known upcoming breaking changes affect this repo.", "");
+        lines.push(also.length ? "Nothing needs action in live code." : "No known upcoming breaking changes affect this repo.", "");
+    }
+    if (alsoFindings.length) {
+        const ctxName = { catalog: "catalogs and model lists", dead: "code nothing reaches", unused: "set but not read", "provider-unresolved": "provider not shown at the request", docs: "docs and examples", other: "other" };
+        const ctxOf = (f) => f.usage.context ?? (roleFor(f.usage) === "users-copy" ? "docs" : roleFor(f.usage) === "catalog" ? "catalog" : "other");
+        const byCtx = new Map();
+        for (const f of alsoFindings)
+            byCtx.set(ctxOf(f), (byCtx.get(ctxOf(f)) ?? 0) + 1);
+        const summary = [...byCtx].map(([k, n]) => `${ctxName[k] ?? k} ${n}`).join(", ");
+        lines.push(`<details><summary>Also in your code (${alsoFindings.length} in ${alsoFiles.size} ${alsoFiles.size === 1 ? "file" : "files"}: ${summary})</summary>`, "");
+        lines.push("", "The retired thing is here too, but not at a live request or default: update it when you can. These never fail a check.", "");
+        const byFile = new Map();
+        for (const f of alsoFindings)
+            byFile.set(f.usage.file, [...(byFile.get(f.usage.file) ?? []), f]);
+        for (const [file, fs] of [...byFile].sort((a, b) => a[0].localeCompare(b[0]))) {
+            lines.push(`**${code(file)}**`, "");
+            // a large catalog's entries: one line listing the retired ids
+            const grouped = fs.filter((f) => f.usage.grouped);
+            if (grouped.length) {
+                const g0 = grouped[0];
+                const ls = [...new Set(grouped.map((f) => f.usage.line))].sort((a, b) => a - b);
+                const ids = g0.usage.grouped.ids;
+                lines.push(`- ${STATUS[grouped.reduce((w, f) => (["broken", "urgent", "upcoming", "on-upgrade"].indexOf(f.status) < ["broken", "urgent", "upcoming", "on-upgrade"].indexOf(w) ? f.status : w), g0.status)]}: ${g0.usage.grouped.count} entries: ${ids.slice(0, 12).map((x) => code(x)).join(", ")}${ids.length > 12 ? ", …" : ""}, lines ${ls.slice(0, 5).join(", ")}${ls.length > 5 ? ` and ${ls.length - 5} more` : ""} (${ctxName.catalog})`);
+            }
+            for (const g of groupFindings(fs.filter((f) => !f.usage.grouped))) {
+                const f = g.first;
+                const shown = g.lines.slice(0, 5).join(", ") + (g.lines.length > 5 ? ` and ${g.lines.length - 5} more` : "");
+                lines.push(`- ${STATUS[f.status]}: ${titleOf(f, "")}, line${g.lines.length > 1 ? "s" : ""} ${shown} (${ctxName[ctxOf(f)] ?? ctxOf(f)}${f.usage.contextReason ? `: ${text(f.usage.contextReason)}` : ""})`);
+            }
+            lines.push("");
+        }
+        lines.push("</details>", "");
     }
     if (copyGroups.length) {
         lines.push("## In examples and docs", "", "Code people copy: a complete fix updates these too.", "");
         detailed(copyGroups);
     }
     if (testGroups.length) {
-        lines.push(`<details><summary>In tests (${testGroups.length})</summary>`, "");
+        lines.push(`<details><summary>Also in tests: notes (${testGroups.length})</summary>`, "", "Notes only: places in test files never fail a check and aren't counted above.", "");
         if (testAsserts.length) {
             lines.push("", "Tests that set or check the old model: a fix updates them in the same pull request, so your CI keeps passing.", "");
             brief(testAsserts);

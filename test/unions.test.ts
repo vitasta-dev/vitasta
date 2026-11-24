@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { scanRepo } from "../src/scan/index.js";
+import { scanRepo } from "./helpers/legacy-scan.js";
 
 // Recall gap from the 55-repo benchmark: model IDs written as TypeScript literal types
 describe("TypeScript literal types", () => {

@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { scanRepo } from "../src/scan/index.js";
+import { scanRepo } from "./helpers/legacy-scan.js";
 
 // Built from the false positives found in the 55-repo precision review (13 Nov 2026)
 describe("loose model strings: settings count, data and labels don't", () => {

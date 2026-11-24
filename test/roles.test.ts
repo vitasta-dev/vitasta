@@ -4,7 +4,7 @@ import type { Usage } from "../src/types.js";
 
 const u = (file: string, extra: Partial<Usage> = {}): Usage => ({ provider: "openai", kind: "model-ref", lang: "py", file, line: 1, model: "gpt-4o", confidence: "possible", snippet: "", ...extra });
 
-describe("roles: what a place is for (founder, 19 Nov: replacement in all files, only breakage fails)", () => {
+describe("roles: what a place is for", () => {
   it("examples, tutorials and docs are users-copy; tests aren't, even inside an examples folder", () => {
     for (const f of ["examples/agent.py", "cookbook/90_models/basic.py", "docs/guide.md", "tutorial.ipynb", "templates/starter/src/agent.ts", "demo_app.py"]) expect(isExamplePath(f), f).toBe(true);
     for (const f of ["src/agent.py", "tests/test_agent.py", "app/models.ts"]) expect(isExamplePath(f), f).toBe(false);
@@ -68,24 +68,25 @@ describe("step 4: reporting by role", async () => {
     const changed = new Map([["src/agent.py", new Set([3])], ["examples/demo.py", new Set([5])], ["tests/test_agent.py", new Set([7])], ["src/models.ts", new Set([9])]]);
     const r = evaluatePr([live, example, test, listed], changed);
     expect(r.conclusion).toBe("failure");
-    expect(r.introduced.map((x) => x.usage.file).sort()).toEqual(["examples/demo.py", "src/agent.py"]);
+    //
+    expect(r.introduced.map((x) => x.usage.file).sort()).toEqual(["examples/demo.py", "src/agent.py", "src/models.ts"]);
     expect(annotationFor(example, true).annotation_level).not.toBe("failure");
     expect(annotationFor(live, true).annotation_level).toBe("failure");
     expect(evaluatePr([example, test, listed], changed).conclusion).not.toBe("failure");
   });
 
-  it("the report has a section per role; only live code is under 'What breaks'", () => {
+  it("two tiers: only live code is under 'Action needed'; docs and catalogs are 'Also in your code'", () => {
     const md = renderMarkdown({ root: ".", scannedAt: "2026-11-19T00:00:00Z", filesScanned: 4, sdks: [], usages: [] } as any, [live, example, test, listed], "acme/app");
-    const breaks = md.slice(md.indexOf("## What breaks"), md.indexOf("## In examples and docs"));
-    expect(breaks).toContain("src/agent.py");
-    expect(breaks).not.toContain("examples/demo.py");
-    expect(md).toContain("## In examples and docs");
-    expect(md).toMatch(/<summary>In tests \(1\)<\/summary>[\s\S]*tests\/test_agent\.py/);
-    expect(md).toMatch(/<summary>In model lists, catalogs and price tables \(1\)<\/summary>[\s\S]*Never renamed/);
+    const action = md.slice(md.indexOf("## Action needed"), md.indexOf("<details>"));
+    expect(action).toContain("src/agent.py");
+    expect(action).not.toContain("examples/demo.py");
+    expect(action).not.toContain("src/models.ts");
+    expect(md).toMatch(/<summary>Also in your code \(2 in 2 files: [^)]*\)<\/summary>[\s\S]*examples\/demo\.py[\s\S]*src\/models\.ts/);
+    expect(md).toMatch(/<summary>Also in tests: notes \(1\)<\/summary>[\s\S]*tests\/test_agent\.py/);
   });
 });
 
-describe("roles v2 (rules designed from the held-out error categories; judged on a second blind set)", async () => {
+describe("roles v2", async () => {
   const { mkdir, mkdtemp, writeFile } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const { dirname, join } = await import("node:path");
@@ -99,7 +100,7 @@ describe("roles v2 (rules designed from the held-out error categories; judged on
     }
     return d;
   };
-  const roles = async (d: string) => (await scanRepo(d)).usages.filter((x) => x.model).map((x) => `${x.file}:${x.line} ${x.model} ${x.role}`).sort();
+  const roles = async (d: string) => (await scanRepo(d)).usages.filter((x) => x.model).map((x) => `${x.file}:${x.line} ${x.model} ${x.testRole ?? x.role}`).sort();
 
   it("1: JSON data of saved runs is recorded; a JSON config isn't", () => {
     expect(roleOf(u(".agents/skills/qa/references/backfills/run-12.json", { setting: true }))).toBe("recorded");

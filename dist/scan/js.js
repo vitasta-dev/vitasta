@@ -1,5 +1,5 @@
 import { dirname, resolve } from "node:path";
-import { PROVIDERS, hostOfClass, matchUrl, mentionsRouter, modelProvider, modelRef, providerById, sdkOp, urlVersionOf } from "../providers.js";
+import { PROVIDERS, looksLikeSdkPath, hostOfClass, matchUrl, mentionsRouter, modelProvider, modelRef, providerById, sdkOp, urlVersionOf } from "../providers.js";
 import { alwaysCounts, inModelCollection, isPairKey, jsSettingKind } from "./context.js";
 import { candidateKind, collectionName, inCostContext, inDataCollection, inDataTable, inExampleOrTokenizer, inRecordedResponse } from "./shapes.js";
 import { lineOf, named, nodesOfType, snippetOf } from "./parser.js";
@@ -39,6 +39,29 @@ export function collectExports(file, abs, lang, source, tree, exported) {
         else if (left.text.startsWith("exports.") || left.text.startsWith("module.exports."))
             names.set(left.text.split(".").pop(), ctx.clients.get(right.text));
     }
+    // a factory the module exports (export function getOpenAI() { return new OpenAI() }): its callers elsewhere hold a
+    // client of that provider too, as fn:<name>
+    for (const exp of nodesOfType(tree.rootNode, "export_statement")) {
+        const decl = exp.childForFieldName("declaration");
+        const own = decl?.type === "function_declaration" ? [decl.childForFieldName("name")?.text] : decl ? nodesOfType(decl, "variable_declarator").map((d) => d.childForFieldName("name")?.text) : [];
+        for (const n of own)
+            if (n && ctx.factories.has(n))
+                names.set(`fn:${n}`, ctx.factories.get(n));
+        const value = exp.childForFieldName("value");
+        if (value?.type === "identifier" && ctx.factories.has(value.text))
+            names.set("fn:default", ctx.factories.get(value.text));
+        if (/^export\s+default\s+function\s+(\w+)/.test(exp.text)) {
+            const n = /^export\s+default\s+function\s+(\w+)/.exec(exp.text)[1];
+            if (ctx.factories.has(n))
+                names.set("fn:default", ctx.factories.get(n));
+        }
+        for (const spec of nodesOfType(exp, "export_specifier")) {
+            const n = spec.childForFieldName("name")?.text;
+            const alias = spec.childForFieldName("alias")?.text ?? n;
+            if (n && alias && ctx.factories.has(n))
+                names.set(`fn:${alias}`, ctx.factories.get(n));
+        }
+    }
     if (names.size)
         exported.set(stripExt(abs), names);
 }
@@ -46,7 +69,9 @@ export function collectExports(file, abs, lang, source, tree, exported) {
 export function analyzeJs(file, abs, lang, source, tree, exported) {
     const ctx = makeCtx(file, abs, lang, source, tree, exported);
     const usages = [];
-    const hasSdk = ctx.sdkNames.size > 0 || ctx.clients.size > 0;
+    // v8: or a receiver named after a provider whose ops follow a naming rule (`stripe.paymentIntents.create` on a client
+    // another module exports)
+    const hasSdk = ctx.sdkNames.size > 0 || ctx.clients.size > 0 || PROVIDERS.some((p) => (p.opFor || Object.keys(p.sdkOps).length) && new RegExp(`\\b_*${p.id}(Client)?\\.\\w+\\.\\w+`, "i").test(source));
     for (const call of nodesOfType(tree.rootNode, "call_expression")) {
         const fn = call.childForFieldName("function");
         if (!fn)
@@ -63,6 +88,7 @@ export function analyzeJs(file, abs, lang, source, tree, exported) {
     usages.push(...modelIdObjects(ctx));
     usages.push(...versionPins(ctx));
     usages.push(...modelRefs(ctx));
+    usages.push(...ctx.flowUsages);
     return usages;
 }
 /** AWS SDK v3 bedrock-runtime commands → Bedrock REST operation */
@@ -107,6 +133,7 @@ function modelIdObjects(ctx) {
 }
 function makeCtx(file, abs, lang, source, tree, exported) {
     const ctx = {
+        flowUsages: [],
         file, abs, lang, source, tree,
         sdkNames: new Map(), clients: new Map(), clientProxies: new Map(), clientHosts: new Map(), factories: new Map(), classNames: new Map(),
         consts: new Map(), httpInstances: new Map(), consumed: new Set(),
@@ -194,6 +221,8 @@ function collectImports(ctx, exported) {
                     const local = prop.type === "pair_pattern" ? prop.childForFieldName("value")?.text : prop.text;
                     if (orig && local && target.has(orig))
                         ctx.clients.set(local, target.get(orig));
+                    if (orig && local && target.has(`fn:${orig}`))
+                        ctx.factories.set(local, target.get(`fn:${orig}`));
                 }
             }
         }
@@ -207,12 +236,16 @@ function importExportedClients(ctx, spec, clause, exported) {
     for (const part of named(clause)) {
         if (part.type === "identifier" && target.has("default"))
             ctx.clients.set(part.text, target.get("default"));
+        if (part.type === "identifier" && target.has("fn:default"))
+            ctx.factories.set(part.text, target.get("fn:default"));
         if (part.type === "named_imports") {
             for (const s of named(part).filter((n) => n.type === "import_specifier")) {
                 const name = s.childForFieldName("name")?.text;
                 const alias = s.childForFieldName("alias")?.text ?? name;
                 if (name && alias && target.has(name))
                     ctx.clients.set(alias, target.get(name));
+                if (name && alias && target.has(`fn:${name}`))
+                    ctx.factories.set(alias, target.get(`fn:${name}`));
             }
         }
     }
@@ -300,7 +333,8 @@ function proxyFromExpr(ctx, provider, expr) {
     const url = opts && resolveString(ctx, objectProp(opts, ["baseURL", "baseUrl", "base_url", "endpoint"]) ?? null);
     const host = url ? /^https?:\/\/([^/]+)/.exec(url)?.[1] : undefined;
     const own = providerById(provider)?.hosts ?? [];
-    return host && !own.some((h) => host.endsWith(h)) && !/localhost|127\.0\.0\.1/.test(host) ? host : undefined;
+    //
+    return host && !own.some((h) => host.endsWith(h)) ? host : undefined;
 }
 /** Helpers that build a client: function createClient() { return new Anthropic() } / const make = () => new OpenAI() */
 function collectFactories(ctx) {
@@ -440,6 +474,37 @@ function sdkCall(ctx, call, fn) {
                 break;
             }
         }
+        // v8: providers whose ops come from a naming rule (Stripe's resources), on a receiver named after the provider
+        // (`stripe.paymentIntents.create`, `this._stripe.…`, a client exported by another module)
+        if (!providerId && chain.path.length >= 2) {
+            const rootName = rootKey.split(".").pop().replace(/^_+/, "").toLowerCase();
+            for (const p of PROVIDERS) {
+                // A naming rule accepts any a.b.c(), so the receiver itself must name the provider
+                if (!p.opFor || !(rootName === p.id || rootName === `${p.id}client`) || !looksLikeSdkPath(callPath))
+                    continue;
+                if (sdkOp(p, callPath)) {
+                    providerId = p.id;
+                    confidence = "likely";
+                    break;
+                }
+            }
+        }
+        // v12: providers with an op table (OpenAI's beta.threads.runs.stream …): an imported SDK or a receiver named after
+        // the provider (`openai.beta…` from another module), matched by the table's prefixes
+        if (!providerId && chain.path.length >= 2) {
+            const rootName = rootKey.split(".").pop().replace(/^_+/, "").toLowerCase();
+            for (const p of PROVIDERS) {
+                if (p.opFor || !Object.keys(p.sdkOps).length)
+                    continue;
+                if (!(imported.has(p.id) || rootName === p.id || rootName === `${p.id}client`))
+                    continue;
+                if (Object.keys(p.sdkOps).some((k) => callPath === k || callPath.startsWith(k + ".")) && sdkOp(p, callPath)) {
+                    providerId = p.id;
+                    confidence = "likely";
+                    break;
+                }
+            }
+        }
     }
     if (!providerId)
         return undefined;
@@ -451,9 +516,40 @@ function sdkCall(ctx, call, fn) {
     const op = routeOp ?? sdkOp(provider, callPath);
     if (!op)
         return undefined;
-    const body = args.find((a) => a.type === "object");
+    // v7: create(params) where `const params = { … }` earlier in the same function: the object's keys are the call's
+    const first = args[0]?.type === "object" ? args[0] : args[0]?.type === "identifier" ? objectBoundTo(args[0], call) : undefined;
+    const body = first ?? args.find((a) => a.type === "object");
     const info = body ? readBody(ctx, body) : { params: [] };
+    // v11: keys set on the request after it's built (params.k = …, params['k'] = …), before the call
+    if (args[0]?.type === "identifier") {
+        for (const [k, span] of keysAssignedTo(ctx, args[0], call)) {
+            if (info.params.includes(k))
+                continue;
+            info.params.push(k);
+            info.paramSpans = { ...(info.paramSpans ?? {}), [k]: span };
+        }
+    }
     const { model, params } = info;
+    // v8: objects that reach the call through other functions in this file (a builder's return value, a wrapper's
+    // parameter): each is reported where it's written, so a fix edits the object
+    if (!body && args[0]) {
+        for (const o of objectsReaching(args[0], call, FLOW_DEPTH)) {
+            const more = readBody(ctx, o);
+            // One usage per key, on the key's own line: a finding points at what a fix changes
+            for (const k of more.params) {
+                const span = more.paramSpans?.[k];
+                const line = span ? ctx.source.slice(0, span.start).split("\n").length : lineOf(o);
+                // One object shared by several calls of the same operation: one usage per key
+                if (ctx.flowUsages.some((x) => x.line === line && x.op === op && x.params?.[0] === k))
+                    continue;
+                ctx.flowUsages.push({
+                    provider: provider.id, kind: "sdk", lang: ctx.lang, file: ctx.file, line, op, sdkCall: callPath, params: [k],
+                    confidence: "possible", snippet: (ctx.source.split("\n")[line - 1] ?? "").trim().slice(0, 200), reason: "params built elsewhere and passed to this call",
+                    ...(span ? { paramSpans: { [k]: span } } : {}),
+                });
+            }
+        }
+    }
     return {
         provider: provider.id, kind: "sdk", lang: ctx.lang, file: ctx.file, line: lineOf(call),
         op, sdkCall: callPath, model, params, confidence, snippet: snippetOf(ctx.source, call), ...spansOf(info),
@@ -585,7 +681,7 @@ function modelRefs(ctx) {
         // Only model settings count: DEFAULT_MODEL = "…", { model: "…" }, MODELS = [...], anthropic("…")
         // A cloud-form ID (Vertex "@", Bedrock "anthropic.") counts anywhere except as a lookup-table key (prices, sizes)
         // A model in a recorded or mocked API response is output, and one in pricing or cost code is an estimate input
-        // Recorded output and price/cost tables are still reported, in their own roles (founder, 19 Nov: replacement
+        // Recorded output and price/cost tables are still reported, in their own roles (replacement
         // in all files): recorded is info and never edited, a price table is a catalog entry the fix never renames
         if (inExampleOrTokenizer(s))
             continue;
@@ -602,12 +698,12 @@ function modelRefs(ctx) {
         // A model-named list inside a table of capabilities or prices (models: [...] in a compatibility matrix) is data
         const strict = (ownKind === "listed" && inDataTable(s) ? undefined : ownKind) ?? (alwaysCounts(ref.model) && !isPairKey(s, ["parenthesized_expression"]) && !inDataCollection(s) ? (inModelCollection(s, (k) => !!modelRef(k)) ? "listed" : "setting") : undefined);
         // Otherwise a model enum, list, per-provider map or model-shaped call counts if the repo uses the provider
-        const kind = strict ?? candidateKind(s, ["string", "template_string"], (t) => !!modelRef(t, routed));
-        if (!kind)
-            continue;
+        //
+        const kind = strict ?? candidateKind(s, ["string", "template_string"], (t) => !!modelRef(t, routed)) ?? "catalog";
         const editable = !ref.prefixed && (s.type === "string" || !named(s).some((c) => c.type === "template_substitution"));
         out.push({
             ...(kind === "listed" ? { listed: true, owner: collectionName(s) } : {}),
+            ...(kind === "catalog" ? { listed: true, context: "catalog", contextReason: "a model id outside a request or setting (a list, table or text)" } : {}),
             ...(kind === "setting" ? { setting: true } : {}),
             ...(strict ? {} : { weak: true }),
             provider: ref.provider.id, kind: "model-ref", lang: ctx.lang, file: ctx.file, line: lineOf(s),
@@ -631,6 +727,25 @@ function readBody(ctx, obj) {
                 const vNode = child.childForFieldName("value");
                 model = resolveString(ctx, vNode, true);
                 modelSpan = literalSpan(ctx, vNode);
+            }
+        }
+        else if (child.type === "spread_element") {
+            // v12: ...spreadIfDefined('temperature', t), ...maybe("top_p", p): a helper that adds the key it's given
+            const sc = unwrap(named(child)[0]);
+            const k0 = sc?.type === "call_expression" ? named(sc.childForFieldName("arguments") ?? sc)[0] : undefined;
+            if (k0?.type === "string" && /^[A-Za-z_]\w*$/.test(unquote(k0.text)) && !params.includes(unquote(k0.text))) {
+                params.push(unquote(k0.text));
+                paramSpans[unquote(k0.text)] = { start: child.startIndex, end: child.endIndex };
+            }
+            // { ...base }: base's own keys, when it's an object written earlier in the same function (v7); and
+            // { ...(cond ? { k: v } : {}) }, { ...(cond && { k: v }) }: the keys either branch adds (v9)
+            for (const inner of spreadObjects(named(child)[0], obj)) {
+                if (inner.id === obj.id)
+                    continue;
+                const more = readBody(ctx, inner);
+                for (const k of more.params)
+                    if (!params.includes(k))
+                        (params.push(k), more.paramSpans?.[k] && (paramSpans[k] = more.paramSpans[k]));
             }
         }
         else if (child.type === "shorthand_property_identifier") {
@@ -779,4 +894,187 @@ function normalizeRoute(route) {
 /** /v1/models/{?} → /v1/models/{id} so it lines up with spec paths */
 export function normalizePath(path) {
     return path.replace(/\{\?\}/g, "{id}").replace(/\/+$/, "") || "/";
+}
+/**
+ * v7, light data flow: the object literal a name is bound to (`const params = { … }`, `let opts = { … }`) in the same
+ * function, before `at`. Only plain declarations: a name reassigned or built up elsewhere isn't followed.
+ */
+function objectBoundTo(id, at) {
+    let scope = at.parent;
+    while (scope && !["statement_block", "program"].includes(scope.type))
+        scope = scope.parent;
+    for (let block = scope; block; block = block.parent) {
+        if (!["statement_block", "program"].includes(block.type))
+            continue;
+        let found;
+        for (const d of block.descendantsOfType("variable_declarator")) {
+            if (!d || d.startIndex >= at.startIndex)
+                continue;
+            if (d.childForFieldName("name")?.text !== id.text)
+                continue;
+            const v = d.childForFieldName("value");
+            if (v?.type === "object")
+                found = v;
+        }
+        if (found)
+            return found;
+        if (block.type === "program")
+            break;
+    }
+    return undefined;
+}
+const FLOW_DEPTH = 4;
+const FUNCTION_TYPES = ["function_declaration", "method_definition", "arrow_function", "function_expression", "function"];
+/** The function a node is in, and its name (a method's, a declaration's, or the variable an arrow is assigned to) */
+function enclosingFunction(n) {
+    for (let p = n.parent; p; p = p.parent) {
+        if (!FUNCTION_TYPES.includes(p.type))
+            continue;
+        const own = p.childForFieldName("name")?.text;
+        const decl = p.parent?.type === "variable_declarator" ? p.parent.childForFieldName("name")?.text : undefined;
+        const pair = p.parent?.type === "pair" ? p.parent.childForFieldName("key")?.text : undefined;
+        return { fn: p, name: own ?? decl ?? pair };
+    }
+    return undefined;
+}
+/** Position of `name` among a function's parameters, or -1 */
+function paramIndex(fn, name) {
+    const params = fn.childForFieldName("parameters");
+    if (!params)
+        return fn.childForFieldName("parameter")?.text === name ? 0 : -1;
+    const list = named(params);
+    return list.findIndex((p) => {
+        const id = p.type === "identifier" ? p : (p.childForFieldName("pattern") ?? p.childForFieldName("left") ?? p);
+        return id?.text === name;
+    });
+}
+/** Functions and methods in the file with this name */
+function functionsNamed(root, name) {
+    const out = [];
+    for (const t of FUNCTION_TYPES) {
+        for (const f of root.descendantsOfType(t)) {
+            if (!f)
+                continue;
+            const n = f.childForFieldName("name")?.text ?? (f.parent?.type === "variable_declarator" ? f.parent.childForFieldName("name")?.text : undefined);
+            if (n === name)
+                out.push(f);
+        }
+    }
+    return out;
+}
+const calleeName = (call) => (call.childForFieldName("function")?.text ?? "").split(/[.?]+/).pop() ?? "";
+/**
+ * v8, bounded data flow within a file: the object literals that can reach `n` (a call's argument). Follows a name to
+ * its object or to the call it holds, a call to what its function returns, a parameter back to the function's callers,
+ * and a helper call through its arguments (sessionCreateParams(params, parts)). Depth-limited, at most 10 objects.
+ */
+function objectsReaching(n, at, depth, seen = new Set()) {
+    const node = unwrap(n);
+    if (!node || seen.has(node.id) || seen.size > 40)
+        return [];
+    seen.add(node.id);
+    if (node.type === "object")
+        return [node];
+    const root = (() => { let r = node; while (r.parent)
+        r = r.parent; return r; })();
+    const out = [];
+    if (node.type === "identifier") {
+        const bound = objectBoundTo(node, at);
+        if (bound)
+            out.push(bound);
+        // const opts = this.build(…): what build returns
+        for (const d of root.descendantsOfType("variable_declarator")) {
+            if (!d || d.startIndex >= at.startIndex || d.childForFieldName("name")?.text !== node.text)
+                continue;
+            const v = unwrap(d.childForFieldName("value"));
+            if (v?.type === "call_expression" && depth > 0)
+                out.push(...objectsReaching(v, d, depth - 1, seen));
+        }
+        // A parameter: what the function's callers in this file pass in that position
+        // (through callbacks: the nearest enclosing function that declares the name)
+        let f = enclosingFunction(at);
+        while (f && paramIndex(f.fn, node.text) < 0)
+            f = enclosingFunction(f.fn);
+        const i = f ? paramIndex(f.fn, node.text) : -1;
+        if (f?.name && i >= 0 && depth > 0) {
+            for (const c of root.descendantsOfType("call_expression")) {
+                if (!c || calleeName(c) !== f.name)
+                    continue;
+                const a = named(c.childForFieldName("arguments") ?? c)[i];
+                if (a)
+                    out.push(...objectsReaching(a, c, depth - 1, seen));
+            }
+        }
+    }
+    else if (node.type === "call_expression" && depth > 0) {
+        const fns = functionsNamed(root, calleeName(node));
+        for (const fn of fns) {
+            const body = fn.childForFieldName("body");
+            if (body?.type === "object")
+                out.push(body);
+            for (const r of body ? body.descendantsOfType("return_statement") : []) {
+                const e = r && named(r)[0];
+                if (e)
+                    out.push(...objectsReaching(e, r, depth - 1, seen));
+            }
+        }
+        // A helper: its arguments are what it builds from (sessionCreateParams(params, parts))
+        for (const a of named(node.childForFieldName("arguments") ?? node))
+            out.push(...objectsReaching(a, node, depth - 1, seen));
+    }
+    return [...new Map(out.map((o) => [o.id, o])).values()].slice(0, 10);
+}
+/** v9: the objects a spread can add: a name bound to one, or the branches of a condition (a ? {…} : {}, a && {…}) */
+function spreadObjects(n, at, depth = 3) {
+    const node = n ? unwrap(n) : undefined;
+    if (!node || depth < 0)
+        return [];
+    if (node.type === "object")
+        return [node];
+    if (node.type === "identifier") {
+        const o = objectBoundTo(node, at);
+        return o ? [o] : [];
+    }
+    if (node.type === "ternary_expression")
+        return [...spreadObjects(node.childForFieldName("consequence") ?? undefined, at, depth - 1), ...spreadObjects(node.childForFieldName("alternative") ?? undefined, at, depth - 1)];
+    if (node.type === "binary_expression" && /^(&&|\|\||\?\?)$/.test(node.childForFieldName("operator")?.text ?? ""))
+        return [...spreadObjects(node.childForFieldName("left") ?? undefined, at, depth - 1), ...spreadObjects(node.childForFieldName("right") ?? undefined, at, depth - 1)];
+    return [];
+}
+/** v11: keys a name gets by assignment before `at`, in the enclosing function: `p.k = …`, `p['k'] = …`, Object.assign(p, {…}) */
+function keysAssignedTo(ctx, id, at) {
+    let scope = at.parent;
+    while (scope && !["statement_block", "program"].includes(scope.type))
+        scope = scope.parent;
+    if (!scope)
+        return [];
+    const out = [];
+    for (const a of scope.descendantsOfType("assignment_expression")) {
+        if (!a || a.startIndex >= at.startIndex)
+            continue;
+        const left = a.childForFieldName("left");
+        if (left?.type === "member_expression" && left.childForFieldName("object")?.text === id.text) {
+            const k = left.childForFieldName("property")?.text;
+            if (k)
+                out.push([k, { start: a.startIndex, end: a.endIndex }]);
+        }
+        else if (left?.type === "subscript_expression" && left.childForFieldName("object")?.text === id.text) {
+            const k = unquote(left.childForFieldName("index")?.text ?? "");
+            if (k && /^[A-Za-z_]\w*$/.test(k))
+                out.push([k, { start: a.startIndex, end: a.endIndex }]);
+        }
+    }
+    for (const c of scope.descendantsOfType("call_expression")) {
+        if (!c || c.startIndex >= at.startIndex || c.childForFieldName("function")?.text !== "Object.assign")
+            continue;
+        const as = named(c.childForFieldName("arguments") ?? c);
+        if (as[0]?.text !== id.text)
+            continue;
+        for (const o of as.slice(1).filter((x) => x.type === "object")) {
+            const b = readBody(ctx, o);
+            for (const k of b.params)
+                out.push([k, b.paramSpans?.[k] ?? { start: o.startIndex, end: o.endIndex }]);
+        }
+    }
+    return out;
 }

@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { scanRepo } from "../src/scan/index.js";
+import { scanRepo } from "./helpers/legacy-scan.js";
 import type { ApiMap } from "../src/types.js";
 
 let map: ApiMap;
@@ -30,7 +30,7 @@ describe("basic Go, Ruby, PHP and C# support", () => {
   });
 
   it("Ruby: hash settings and model lists; not sentences", () => {
-    expect(of("rb/")).toEqual(["model-ref:2:gpt-4-0613", "model-ref:3:gpt-3.5-turbo", "model-ref:3:gpt-4o", "model-ref:6:claude-3-haiku-20240307", "model-ref:7:claude-sonnet-5-5"]);
+    expect(of("rb/")).toEqual(["model-ref:2:gpt-4-0613", "model-ref:3:gpt-3.5-turbo", "model-ref:3:gpt-4o", "model-ref:6:claude-3-haiku-20240307", "model-ref:7:claude-sonnet-5-5", "sdk:2:POST /v1/chat/completions", "sdk:2:POST /v1/chat/completions"]);
   });
 
   it("PHP: array settings and Graph API versions in URLs", () => {

@@ -2,7 +2,7 @@ import { mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadRepoConfig, safePattern } from "../src/config.js";
+import { loadRepoConfig } from "../src/config.js";
 import { redactSecrets } from "../src/redact.js";
 import { code, fence } from "../src/report/escape.js";
 import { scanRepo } from "../src/scan/index.js";
@@ -12,28 +12,9 @@ const repo = async (files: Record<string, string>) => {
   for (const [p, t] of Object.entries(files)) await writeFile(join(d, p), t);
   return d;
 };
-const timed = async (f: () => Promise<unknown>) => {
-  const t = Date.now();
-  await f();
-  return Date.now() - t;
-};
 
 describe("18 Nov review: scans stay fast and contained on hostile repos", () => {
-  it("F1: long bounded repeats are refused, and a repo's patterns share a time budget", async () => {
-    expect(() => safePattern("\\w*\\w*\\w{0,250}!", "p")).toThrow(/up to 32/);
-    const tokens = Array.from({ length: 10 }, () => `model: ${"a".repeat(250)}`).join("\n");
-    const d = await repo({ ".vitasta.yml": 'providers:\n  - id: acme\n    hosts: [api.acme.example]\n    modelPattern: "\\\\w*\\\\w*\\\\w{0,32}!"\n', "settings.yml": tokens });
-    expect(await timed(() => scanRepo(d))).toBeLessThan(8000);
-  }, 30_000);
-
-  it("F2: a long line, a long YAML list and a script full of installs scan in linear time", async () => {
-    const d = await repo({
-      "main.go": `package main\nvar x = ${"a".repeat(40_000)} + "gpt-4o"\n`,
-      "models.yml": `models:\n${Array.from({ length: 5000 }, (_, i) => `  - gpt-4o-${i}`).join("\n")}\n`,
-      "run.sh": "pip ".repeat(16_000),
-    });
-    expect(await timed(() => scanRepo(d))).toBeLessThan(8000);
-  }, 30_000);
+  // F1 and F2 (wall-clock limits) run on their own, serially: test/hardening.timing.test.ts, npm run test:timing
 
   it("F3: a rule-fixture file that is a symlink (to /dev/zero) is never read", async () => {
     const d = await repo({ "app.py": 'import openai\nclient = openai.OpenAI()\nclient.chat.completions.create(model="gpt-4o", messages=[])\n' });

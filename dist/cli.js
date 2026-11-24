@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { jsonReport } from "./report/json.js";
 import { todayUtc } from "./feed/dates.js";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -10,7 +11,11 @@ import { join, resolve } from "node:path";
 import { defaultFeedDir } from "./feed/match.js";
 import { feedSource, impactsFrom, lookupNotice, LookupError } from "./feed/lookup.js";
 import { renderMarkdown } from "./report/markdown.js";
-import { scanRepo } from "./scan/index.js";
+import { scanRepo, watchParamsOf } from "./scan/index.js";
+import { loadFeed, matches } from "./feed/match.js";
+import { createHash } from "node:crypto";
+/** v6, experimental and off by default: the second-stage catalog model */
+const catalogModel = () => process.argv.includes("--catalog-model") || process.env.VITASTA_CATALOG_MODEL === "1";
 const USAGE = `vitasta scan <path | https://github.com/owner/repo> [options]
 vitasta check <path> --base <git ref> [--feed <dir>] [--github]
 
@@ -25,7 +30,9 @@ Options:
   --json <file>    write the API map and findings as JSON
   --md <file>      write the impact report as Markdown (default: print to stdout)
   --today <date>   pretend today is YYYY-MM-DD (for testing)
-  --map-only       print the API map, skip the feed`;
+  --map-only       print the API map, skip the feed
+  --catalog-model  experimental: a small built-in model may turn findings that look like catalog entries
+                   (model lists, registries) into notes (also VITASTA_CATALOG_MODEL=1)`;
 function arg(name) {
     const i = process.argv.indexOf(name);
     return i >= 0 ? process.argv[i + 1] : undefined;
@@ -53,7 +60,7 @@ async function main() {
                 "clone", "--depth", "1", "--quiet", "--no-recurse-submodules", target, root], { stdio: "inherit", env: { ...process.env, GIT_LFS_SKIP_SMUDGE: "1", GIT_TERMINAL_PROMPT: "0" } });
         }
     }
-    const map = await scanRepo(resolve(root), { onWarn: (m) => console.error(`warn: ${m}`) });
+    const map = await scanRepo(resolve(root), { onWarn: (m) => console.error(`warn: ${m}`), catalogModel: catalogModel(), ...(await localWatch()) });
     if (process.argv.includes("--map-only")) {
         console.log(JSON.stringify(map, null, 2));
         return;
@@ -64,7 +71,7 @@ async function main() {
     const findings = await impactsFrom(src, map, today);
     const json = arg("--json");
     if (json)
-        await writeFile(json, JSON.stringify({ map, findings }, null, 2));
+        await writeFile(json, JSON.stringify(jsonReport(map, findings), null, 2));
     const md = renderMarkdown(map, findings, label);
     const mdOut = arg("--md");
     if (mdOut)
@@ -82,7 +89,7 @@ async function check(target) {
     // The base branch's policy, as the App does: a PR's own .vitasta.yml can't loosen its own check
     const policy = baseConfig(root, base);
     console.error(policy.note);
-    const map = await scanRepo(root, { onWarn: (m) => console.error(`warn: ${m}`), configText: policy.text });
+    const map = await scanRepo(root, { onWarn: (m) => console.error(`warn: ${m}`), configText: policy.text, catalogModel: catalogModel(), ...(await localWatch()) });
     const src = sourceFromArgs();
     const today = arg("--today") ?? todayUtc();
     const findings = await impactsFrom(src, map, today);
@@ -101,6 +108,19 @@ async function check(target) {
     console.log(summary);
     if (result.conclusion === "failure")
         process.exit(1);
+}
+/** With a local feed: the parameters its records select, so traces keep only keys a record could match */
+async function localWatch() {
+    const dir = arg("--feed") ?? defaultFeedDir();
+    if (!dir || process.env.VITASTA_NO_WATCH === "1")
+        return {};
+    try {
+        const feed = await loadFeed(dir);
+        return { watchParams: watchParamsOf(feed), watchOrigin: (u) => feed.some((c) => matches(c, u)), watchKey: createHash("sha256").update(JSON.stringify(feed.map((c) => [c.id, c.provider, c.type, c.selector]))).digest("hex") };
+    }
+    catch {
+        return {};
+    }
 }
 function sourceFromArgs() {
     const src = feedSource(arg("--feed") ?? defaultFeedDir());

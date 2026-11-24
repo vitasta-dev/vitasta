@@ -37,7 +37,7 @@ const base: Baseline | undefined = JSON.parse(await readFile(BASELINE, "utf8").c
 const scans = await scanCorpus({ feedDir: arg("--feed", FEED)!, quiet: true });
 const ruleOfKey = new Map<string, string>();
 const usagesByRule: Record<string, number> = {};
-// What fails a check (founder, 19 Nov: only live code fails; everything else is reported in its role), and what
+// What fails a check, and what
 // failed under the rule before roles (outside tests and lists), so one run shows both
 const failsNow = new Set<string>();
 const failedBefore = new Set<string>();

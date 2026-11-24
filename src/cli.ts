@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { jsonReport } from "./report/json.js";
 import { todayUtc } from "./feed/dates.js";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -10,7 +11,12 @@ import { join, resolve } from "node:path";
 import { defaultFeedDir } from "./feed/match.js";
 import { feedSource, impactsFrom, lookupNotice, LookupError } from "./feed/lookup.js";
 import { renderMarkdown } from "./report/markdown.js";
-import { scanRepo } from "./scan/index.js";
+import { scanRepo, watchParamsOf } from "./scan/index.js";
+import { loadFeed, matches } from "./feed/match.js";
+import { createHash } from "node:crypto";
+
+/** v6, experimental and off by default: the second-stage catalog model */
+const catalogModel = () => process.argv.includes("--catalog-model") || process.env.VITASTA_CATALOG_MODEL === "1";
 
 const USAGE = `vitasta scan <path | https://github.com/owner/repo> [options]
 vitasta check <path> --base <git ref> [--feed <dir>] [--github]
@@ -26,7 +32,9 @@ Options:
   --json <file>    write the API map and findings as JSON
   --md <file>      write the impact report as Markdown (default: print to stdout)
   --today <date>   pretend today is YYYY-MM-DD (for testing)
-  --map-only       print the API map, skip the feed`;
+  --map-only       print the API map, skip the feed
+  --catalog-model  experimental: a small built-in model may turn findings that look like catalog entries
+                   (model lists, registries) into notes (also VITASTA_CATALOG_MODEL=1)`;
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(name);
@@ -61,7 +69,7 @@ async function main(): Promise<void> {
     }
   }
 
-  const map = await scanRepo(resolve(root), { onWarn: (m) => console.error(`warn: ${m}`) });
+  const map = await scanRepo(resolve(root), { onWarn: (m) => console.error(`warn: ${m}`), catalogModel: catalogModel(), ...(await localWatch()) });
   if (process.argv.includes("--map-only")) {
     console.log(JSON.stringify(map, null, 2));
     return;
@@ -73,7 +81,7 @@ async function main(): Promise<void> {
   const findings = await impactsFrom(src, map, today);
 
   const json = arg("--json");
-  if (json) await writeFile(json, JSON.stringify({ map, findings }, null, 2));
+  if (json) await writeFile(json, JSON.stringify(jsonReport(map, findings), null, 2));
   const md = renderMarkdown(map, findings, label);
   const mdOut = arg("--md");
   if (mdOut) await writeFile(mdOut, md);
@@ -90,7 +98,7 @@ async function check(target: string): Promise<void> {
   // The base branch's policy, as the App does: a PR's own .vitasta.yml can't loosen its own check
   const policy = baseConfig(root, base);
   console.error(policy.note);
-  const map = await scanRepo(root, { onWarn: (m) => console.error(`warn: ${m}`), configText: policy.text });
+  const map = await scanRepo(root, { onWarn: (m) => console.error(`warn: ${m}`), configText: policy.text, catalogModel: catalogModel(), ...(await localWatch()) });
   const src = sourceFromArgs();
   const today = arg("--today") ?? todayUtc();
   const findings = await impactsFrom(src, map, today);
@@ -108,6 +116,18 @@ async function check(target: string): Promise<void> {
   }
   console.log(summary);
   if (result.conclusion === "failure") process.exit(1);
+}
+
+/** With a local feed: the parameters its records select, so traces keep only keys a record could match */
+async function localWatch(): Promise<{ watchParams?: Map<string, Set<string>>; watchOrigin?: (u: import("./types.js").Usage) => boolean; watchKey?: string }> {
+  const dir = arg("--feed") ?? defaultFeedDir();
+  if (!dir || process.env.VITASTA_NO_WATCH === "1") return {};
+  try {
+    const feed = await loadFeed(dir);
+    return { watchParams: watchParamsOf(feed), watchOrigin: (u) => feed.some((c) => matches(c, u)), watchKey: createHash("sha256").update(JSON.stringify(feed.map((c) => [c.id, c.provider, c.type, c.selector]))).digest("hex") };
+  } catch {
+    return {};
+  }
 }
 
 function sourceFromArgs() {

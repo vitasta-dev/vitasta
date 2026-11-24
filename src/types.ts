@@ -50,15 +50,67 @@ export interface Usage {
   /** Found in documentation: a Markdown code block or a code sample held in a string. Reported, never fails a PR */
   doc?: boolean;
   /** What this place is for (src/scan/roles.ts): decides how it's reported, whether it fails a check, what a fix does */
-  role?: "breaks" | "users-copy" | "test-asserts" | "test-data" | "catalog" | "recorded";
+  role?: "breaks" | "users-copy" | "test-asserts" | "test-data" | "catalog" | "recorded" | "note";
+  /** For a note in a test file: what kind of test place it is (test-asserts: the fix updates it; test-data: cleanup) */
+  testRole?: "test-asserts" | "test-data";
+  /** v10: which detection module found it: "ai" (model IDs, LLM params) or "api" (versions, endpoints, params) */
+  module?: "ai" | "api";
   /** Describes a call that already happened (telemetry, a recorded response): reported as info, never edited */
   recorded?: boolean;
+  /** The call is inside a private function or method that nothing in the repo refers to (src/scan/deadcode.ts):
+   *  reported at lower confidence, never failing a check */
+  dead?: boolean;
+  /** A SQL seed row whose table the repo's code reads into a request of the same provider (src/scan/sqlseeds.ts) */
+  sqlSeed?: "linked";
+  /** v14: a version in an env file that no code reads: a copy for users, never failing */
+  envUnread?: boolean;
+  /** A value in an env template or a compose service that the code's own default (or a service that doesn't run this
+   *  code) outranks: a note, never failing (src/scan/envdefaults.ts) */
+  envShadowed?: boolean;
   /** Why a place that isn't a use is reported anyway (a price table, a recorded response, a list only checked against) */
   reason?: string;
+  /** The code already copes with the change here: e.g. it retries without the removed
+   *  settings when the API rejects them. Still reported, with this said in the why. */
+  handled?: string;
+  /** The setting is sent only when a capability check says the model takes it (0 if takes_temperature(m) else None):
+   * possible at most, never fails a check */
+  gated?: string;
+  /** Found through an automatic library map (src/scan/automap.ts, trial): possible, never failing a check */
+  libmap?: "auto";
+  /**
+   * ("our job is to give update"): what a place is, when it isn't a live request or default. A label,
+   * never a reason to drop the finding: dead (nothing reaches the code), unused (set but not read where it's sent),
+   * catalog (a model list, table or offered id), provider-unresolved (the request site doesn't show the provider:
+   * a gateway, a configured base URL, a library map)
+   */
+  context?: "dead" | "unused" | "catalog" | "provider-unresolved";
+  contextReason?: string;
+  /** "action" (a live request site or default: can fail a check) or "also" (in your code: shown
+   *  collapsed, grouped per file, never failing) */
+  tier?: "action" | "also";
+  /** A large catalog's findings, grouped into this one (src/feed/match.ts): how many, and the retired ids */
+  grouped?: { count: number; ids: string[] };
+  /** A traced value: the request setting it reaches (src/scan/flow.ts), where a library rule looks for the call */
+  sink?: { file: string; line: number };
+  /** A place that names a reported version constant (src/scan/flow.ts const-use mode) */
+  constUse?: boolean;
+  /** An SDK endpoint class (src/scan/endpointclasses.ts): its path property's line, or a URL call in it (with the class) */
+  endpointRoot?: string;
+  endpointCall?: string;
+  /** A call of a repo's wrapper that fixes a version inside it: the wrapper's own finding ("file:line") */
+  wrapperOrigin?: string;
+  /** Other places, in other files, that a finding covers ("file:line": the callers of a repo's wrapper) */
+  alsoAt?: string[];
+  /** Names this finding's lines declare (a URL or version constant), for folding the request lines that use them */
+  declares?: string[];
+  /** A header that means "uses this API" with no request operation known for it */
+  headerOnly?: boolean;
   /** Found as a model setting (model=…, a default, an option), not only as a string in data */
   setting?: boolean;
   /** The client talks to a different server (an OpenAI-compatible relay or gateway); the provider's dates may not apply */
   proxy?: string;
+  /** The date is another provider's for the same version (Meta Marketing → Graph): the latest it can end; it may end sooner */
+  datedBy?: { provider: string; version: string };
   /** The SDK used when it belongs to another provider (OpenAI SDK calling Groq's compatible endpoint) */
   viaSdk?: string;
   /** Where the model ID literal is in this file (it may be a constant defined elsewhere in the file) */
@@ -66,17 +118,32 @@ export interface Usage {
   /** Other lines that belong to this usage (the model literal, parameters) when they aren't on `line`: a PR that
    *  changes any of them changes the usage */
   alsoLines?: number[];
+  /** Starts a cross-file trace only (a same-file use of a version the binding already reports): never a finding */
+  traceOnly?: boolean;
   /**
    * The model is offered, not necessarily used: an entry in a model list, picker, registry or type union. Reported,
    * but never fails a PR check, and listed after the places that call a model.
    */
   listed?: boolean;
+  /** Internal (v5): in a test file that mocks the provider client, and no assertion there names this model */
+  mocked?: boolean;
+  /** v7, internal: a test stub or assertion matches this versioned URL */
+  urlAsserted?: boolean;
+  /** v6 debug only (VITASTA_FEATURES=1): the catalog model's input features */
+  features?: number[];
   /** Internal: found through a code shape only; kept when the repo shows it uses this provider (scan/evidence.ts) */
   weak?: boolean;
   /** Set when the usage was found from an ID of the provider's own object (e.g. an OpenAI prompt object ID) */
   resource?: string;
   /** Removal range for each parameter passed to the call (object property, keyword argument, Java setter) */
   paramSpans?: Record<string, Span>;
+  /** v17: an AI SDK call's model, when it's written in the code, or what wires an Anthropic provider into it when the
+   * model is picked at runtime; read against the installed @ai-sdk/anthropic release (src/scan/aisdkreleases.ts) */
+  aiSdk?: { model?: string; runtime?: string };
+  /** v18: a sampling setting a wrapper library's release sends on its own (src/scan/libsampling.ts): the package */
+  libSent?: string;
+  /** For an API-meaning header pin: the operations its request's URL traces to (src/scan/flow.ts, header mode) */
+  requestOps?: string[];
 }
 
 export interface SdkDependency {
@@ -126,6 +193,11 @@ export interface ChangeRecord {
     hosts?: ("bedrock" | "vertex" | "azure")[];
     /** Pinned API versions this applies to, e.g. "2025-07" (Shopify) or "v21.0" (Meta Graph) */
     versions?: string[];
+    /**
+     * Header values that mean the code uses what this record covers, lower-case "name: value", a value ending in "*"
+     * is a prefix: "openai-beta: assistants=*" (any code sending it calls the Assistants API, wherever the request is)
+     */
+    headers?: string[];
   };
   announced?: string;
   /** Date the change takes effect (YYYY-MM-DD) */

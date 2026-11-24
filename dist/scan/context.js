@@ -139,6 +139,9 @@ export function jsSettingKind(s) {
     const b = s.parent;
     if (b?.type === "binary_expression" && b.childForFieldName("right")?.id === s.id && /^(\?\?|\|\|)$/.test(b.childForFieldName("operator")?.text ?? "") && /^(process\.env|import\.meta\.env)(\.|\[)|^Deno\.env\.get\(/.test(b.childForFieldName("left")?.text ?? ""))
         return "setting";
+    // x.model ??= "gpt-4o" / x.model ||= "…": a default for a model setting
+    if (b?.type === "augmented_assignment_expression" && b.childForFieldName("right")?.id === s.id && /^(\?\?=|\|\|=)$/.test(b.childForFieldName("operator")?.text ?? "") && isSettingName((b.childForFieldName("left")?.text ?? "").split(".").pop() ?? ""))
+        return "setting";
     const n = climb(s, JS_WRAPPERS);
     const p = n.parent;
     if (!p)
@@ -301,10 +304,80 @@ export function javaSetting(s) {
     if (p.type === "argument_list") {
         const call = p.parent;
         const name = call?.childForFieldName("name")?.text ?? call?.childForFieldName("type")?.text ?? "";
-        return isSettingName(name) || isFactoryCall(name) || namedDefault(p, s);
+        return isSettingName(name) || isFactoryCall(name) || namedDefault(p, s) || keyedGetterDefault(name, p, s);
     }
     if (p.type === "array_initializer")
         return listOwnerIsSetting(p, [], ["variable_declarator"], (o) => o.childForFieldName("name")?.text ?? "");
+    return javaModelReturn(s);
+}
+/**
+ * A preference or config getter's default under a model-named key: prefs.getString(KEY_MODEL, "gpt-3.5-turbo"),
+ * props.getProperty(Keys.MODEL, "…"), map.getOrDefault(MODEL_KEY, "…")
+ */
+function keyedGetterDefault(callName, args, n) {
+    if (!/^(?:get(?:String|OrDefault|Property|Value|Or)?|opt(?:String)?|read(?:String)?|getConfig\w*)$/.test(callName))
+        return false;
+    const items = args.namedChildren.filter((x) => !!x && x.type !== "comment");
+    if (items.length !== 2 || items[1].id !== n.id)
+        return false;
+    const key = items[0];
+    const name = key.type === "identifier" ? key.text : key.type === "field_access" ? (key.childForFieldName("field")?.text ?? "") : flagName(key);
+    return !!name && isSettingName(name);
+}
+/**
+ * Java: a model id a model-named method returns (getDefaultModel(): return "…", a switch arm case "x" -> "…" or
+ * case "x": return "…", a ternary branch)
+ */
+function javaModelReturn(s) {
+    let n = s;
+    for (let up = 0; up < 6 && n.parent; up++) {
+        const p = n.parent;
+        if (p.type === "return_statement" || p.type === "yield_statement" || p.type === "switch_rule")
+            return modelNamedMethod(p);
+        if (!/^(?:ternary_expression|parenthesized_expression|expression_statement|switch_block_statement_group)$/.test(p.type))
+            return false;
+        n = p;
+    }
+    return false;
+}
+function modelNamedMethod(n) {
+    for (let p = n.parent; p; p = p.parent) {
+        if (p.type === "method_declaration")
+            return isSettingName(p.childForFieldName("name")?.text ?? "");
+        if (p.type === "class_body" || p.type === "lambda_expression")
+            return false;
+    }
+    return false;
+}
+/**
+ * Line-based (PHP, C#): a model id returned by a model-named function: `return "…"`, a match / switch arm
+ * (`'anthropic' => 'claude-…'`, `"x" => "…",` in a C# switch expression, `case "x": return "…"`), or a ternary
+ * branch, in the nearest function above whose name says model (defaultModel, GetDefaultModel, resolveModel)
+ *
+ */
+export function modelFunctionReturn(lines, row, before) {
+    const ret = /(?:\breturn\s+|\byield\s+|=>\s*|->\s*|\?\s*|:\s*)$/.exec(before);
+    if (!ret)
+        return false;
+    const arm = /(?:=>|->)\s*$/.test(before);
+    const colon = /:\s*$/.test(before) && !/\?/.test(before) && !/\bcase\b|\bdefault\b/.test(before);
+    if (colon)
+        return false;
+    let sawSwitch = false;
+    for (let r = row; r >= Math.max(0, row - 80); r--) {
+        const l = lines[r] ?? "";
+        if (/\b(?:match|switch)\s*[({]|\bswitch\b/.test(l))
+            sawSwitch = true;
+        const fn = /\bfunction\s+&?(\w+)\s*\(|^\s*(?:(?:public|private|protected|internal|static|async|override|virtual|final|abstract)\s+)+[\w<>\[\]?,. ]+?\s+(\w+)\s*\(/.exec(l);
+        if (fn) {
+            if (arm && !sawSwitch)
+                return false;
+            return isSettingName(fn[1] ?? fn[2]);
+        }
+        // another declaration (a class) above the line: not inside a function
+        if (r < row && /^\s*(?:(?:public|private|protected|internal|abstract|final|static|sealed|partial)\s+)*(?:class|interface|trait|enum|record|struct)\s+\w+/.test(l))
+            return false;
+    }
     return false;
 }
 /** Config line "key: value" / "KEY=value" / "\"key\": \"value\"": is the key model-named? */

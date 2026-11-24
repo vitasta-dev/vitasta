@@ -19,7 +19,7 @@ const DATA = createRequire(import.meta.url)("../data/model-routers.json");
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
 /** A package name as a whole token in a manifest or an import, not as part of a longer name */
 const token = (name) => new RegExp(`(^|[\\s"'=,\\[(:<>])${esc(name)}($|[\\s"'=<>~!\\[\\],;:)@^/]|\\.(?![\\w-]+\\.))`, "m");
-const IMPORT_LINE = /^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+)|import[^'"\n]*from\s+["']([^"']+)["']|(?:const|let|var)[^=\n]*=\s*require\(\s*["']([^"']+)["']\s*\)|import\s+["']([^"']+)["'])/gm;
+const IMPORT_LINE = /^[ \t]*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+)|import[^'"\n]*from\s+["']([^"']+)["']|(?:const|let|var)[^=\n]*=\s*require\(\s*["']([^"']+)["']\s*\)|import\s+["']([^"']+)["'])/gm;
 const EVIDENCE_FILE = /^(Dockerfile.*|.*\.dockerfile|(docker-)?compose.*\.ya?ml|.*\.sh|Makefile|Procfile|justfile|\.env(\..+)?|.*\.env)$/i;
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", "vendor", ".venv", "venv", "__pycache__", "target", ".next"]);
 /** Files that run or install things, read for model CLIs, images and API keys (at most 400 files, 256 KB each) */

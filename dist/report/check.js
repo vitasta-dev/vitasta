@@ -11,17 +11,37 @@ function row(f, lines) {
 export function renderCheckSummary(result, map) {
     const out = [`### Vitasta: ${result.title}`, ""];
     const table = (fs) => {
-        const groups = groupFindings(fs);
+        const groups = groupFindings(fs.filter((f) => !f.usage.grouped));
         out.push("| | Model / API | Where | When | Move to |", "|---|---|---|---|---|");
+        // a large catalog: one row per file, listing the retired ids
+        const catalogs = new Map();
+        for (const f of fs)
+            if (f.usage.grouped)
+                catalogs.set(f.usage.file, [...(catalogs.get(f.usage.file) ?? []), f]);
+        for (const [file, cs] of catalogs) {
+            const ids = cs[0].usage.grouped.ids;
+            const ls = [...new Set(cs.map((f) => f.usage.line))].sort((a, b) => a - b);
+            out.push(`| ${ICON[cs[0].status]} | ${cell(`${cs.length} catalog entries: ${ids.slice(0, 6).join(", ")}${ids.length > 6 ? ", …" : ""}`)} | ${cell(code(`${file}:${ls.slice(0, 5).join(",")}${ls.length > 5 ? ",…" : ""}`))} | | |`);
+        }
         for (const g of groups.slice(0, 30))
             out.push(row(g.first, g.lines));
         if (groups.length > 30)
             out.push(`| | | …and ${groups.length - 30} more | | |`);
         out.push("");
     };
-    if (result.introduced.length) {
-        out.push("**In this pull request**", "");
-        table(result.introduced);
+    // two tiers: what needs action in this PR, then what else it touches (catalogs, dead or unused
+    // code, a provider not shown at the request, docs), which never fails the check
+    const tierOf = (f) => f.usage.tier ?? "action";
+    const action = result.introduced.filter((f) => tierOf(f) === "action");
+    const also = result.introduced.filter((f) => tierOf(f) === "also");
+    if (action.length) {
+        out.push("**Action needed in this pull request**", "");
+        table(action);
+    }
+    if (also.length) {
+        out.push(`<details><summary>Also in this pull request (${groupFindings(also).length}; never fails the check)</summary>`, "");
+        table(also);
+        out.push("</details>", "");
     }
     if (result.existing.length) {
         out.push(`<details><summary>Known issues elsewhere in the repo (${groupFindings(result.existing).length})</summary>`, "");

@@ -4,7 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { evaluatePr } from "../src/check.js";
 import { findImpacts } from "../src/feed/match.js";
-import { scanRepo } from "../src/scan/index.js";
+import { scanRepo } from "./helpers/legacy-scan.js";
 import type { ChangeRecord } from "../src/types.js";
 
 const repo = async (files: Record<string, string>) => {

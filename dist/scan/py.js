@@ -1,4 +1,5 @@
 import { PROVIDERS, hostOfClass, matchUrl, mentionsRouter, modelProvider, modelRef, providerById, sdkOp, urlVersionOf } from "../providers.js";
+import { configuredBase } from "./baseexpr.js";
 import { normalizePath } from "./js.js";
 import { alwaysCounts, inModelCollection, isPairKey, pySettingKind } from "./context.js";
 import { candidateKind, collectionName, inCostContext, inDataCollection, inDataTable, inExampleOrTokenizer, inRecordedResponse } from "./shapes.js";
@@ -8,8 +9,8 @@ const HTTP_METHODS = ["get", "post", "put", "patch", "delete", "head", "options"
 export function analyzePy(file, source, tree) {
     const ctx = {
         file, source, tree,
-        modules: new Map(), classes: new Map(), clients: new Map(), clientHosts: new Map(), clientProxies: new Map(), classNames: new Map(), factories: new Map(),
-        consts: new Map(), httpClients: new Map(), bedrockClients: new Set(), consumed: new Set(),
+        modules: new Map(), classes: new Map(), clients: new Map(), clientAlts: new Map(), clientHosts: new Map(), clientProxies: new Map(), classNames: new Map(), factories: new Map(),
+        consts: new Map(), assigns: new Map(), httpClients: new Map(), bedrockClients: new Set(), consumed: new Set(),
     };
     collectImports(ctx);
     collectConsts(ctx);
@@ -99,6 +100,44 @@ function collectConsts(ctx) {
                 ctx.consts.set(left.text, v);
         }
     }
+    for (const a of nodesOfType(ctx.tree.rootNode, "assignment")) {
+        const left = a.childForFieldName("left");
+        if (left?.type !== "identifier")
+            continue;
+        const v = resolveString(ctx, a.childForFieldName("right"));
+        const list = ctx.assigns.get(left.text) ?? [];
+        list.push({ start: a.startIndex, fn: functionOf(a), value: v !== undefined && !v.includes("{?}") ? v : undefined });
+        ctx.assigns.set(left.text, list);
+    }
+    for (const list of ctx.assigns.values())
+        list.sort((x, y) => x.start - y.start);
+}
+/** The start of the innermost function (def or lambda) a node is in; -1 at module or class level */
+function functionOf(node) {
+    for (let p = node.parent; p; p = p.parent)
+        if (p.type === "function_definition" || p.type === "lambda")
+            return p.startIndex;
+    return -1;
+}
+/**
+ * A name's value where it's used. Assigned in the same function: its last assignment before the use (none before,
+ * or not a string: unknown). Otherwise a module-level constant, else the file's constant as before.
+ */
+function valueAt(ctx, node) {
+    const name = node.text;
+    const list = ctx.assigns.get(name);
+    const fn = functionOf(node);
+    if (list && fn !== -1) {
+        const local = list.filter((a) => a.fn === fn);
+        if (local.length) {
+            const before = local.filter((a) => a.start < node.startIndex);
+            return before.length ? before[before.length - 1].value : undefined;
+        }
+        const mod = list.filter((a) => a.fn === -1 && a.value !== undefined);
+        if (mod.length)
+            return mod[mod.length - 1].value;
+    }
+    return ctx.consts.get(name);
 }
 function clientFromExpr(ctx, expr) {
     if (!expr)
@@ -165,6 +204,7 @@ function collectClients(ctx) {
             }
         }
     }
+    const proxyVotes = new Map();
     for (let pass = 0; pass < 2; pass++) {
         for (const a of nodesOfType(ctx.tree.rootNode, "assignment")) {
             const left = a.childForFieldName("left");
@@ -174,6 +214,7 @@ function collectClients(ctx) {
             const p = clientFromExpr(ctx, right) ?? typeProvider(ctx, a.childForFieldName("type"));
             if (p && (left.type === "identifier" || left.type === "attribute")) {
                 ctx.clients.set(left.text, p);
+                ctx.clientAlts.set(left.text, (ctx.clientAlts.get(left.text) ?? new Set()).add(p));
                 const h = hostFromExpr(ctx, right);
                 if (h)
                     ctx.clientHosts.set(left.text, h);
@@ -181,8 +222,17 @@ function collectClients(ctx) {
                 const base = right?.type === "call" ? kwarg(right, "base_url") : undefined;
                 const url = base ? resolveString(ctx, base) : undefined;
                 const host = url ? /^https?:\/\/([^/]+)/.exec(url)?.[1] : undefined;
-                if (host && !providerById(p).hosts.some((x) => host.endsWith(x)) && !/localhost|127\.0\.0\.1/.test(host))
+                //
+                if (host && !providerById(p).hosts.some((x) => host.endsWith(x)))
                     ctx.clientProxies.set(left.text, host);
+                // or a base the app's settings give plus a version path (f"{self.config['gateway_url']}/v1"; src/scan/baseexpr.ts)
+                const cfg = base && !host ? configuredBase(base.text, PROVIDERS.flatMap((x) => x.hosts)) : undefined;
+                if (cfg)
+                    ctx.clientProxies.set(left.text, cfg);
+                // what this construction points at: one name built against different servers in a file (c = OpenAI(gateway)
+                // in one function, c = OpenAI() in another) isn't known per use, so it gets no proxy
+                const to = host && !providerById(p).hosts.some((x) => host.endsWith(x)) ? host : cfg ?? "provider";
+                proxyVotes.set(left.text, (proxyVotes.get(left.text) ?? new Set()).add(to));
             }
             // http sessions: s = requests.Session() / httpx.Client(base_url="...")
             if (right?.type === "call" && left.type !== "pattern_list") {
@@ -224,6 +274,9 @@ function collectClients(ctx) {
                 ctx.clients.set(name, p);
         }
     }
+    for (const [name, to] of proxyVotes)
+        if (to.size > 1)
+            ctx.clientProxies.delete(name);
 }
 function typeProvider(ctx, t) {
     if (!t)
@@ -280,11 +333,32 @@ function sdkCall(ctx, call, fn) {
     }
     if (!providerId)
         return undefined;
+    // v17: a name bound to clients of several providers: the one whose SDK has this call. Its model may be a name with
+    // several values (one per provider), so the literals it reads stay model references of their own
+    let chosen = false;
+    if (!sdkOp(providerById(providerId), callPath)) {
+        const alt = [...(ctx.clientAlts.get(chain.root) ?? [])].filter((pid) => sdkOp(providerById(pid), callPath));
+        if (alt.length === 1)
+            (providerId = alt[0]), (chosen = true);
+    }
     const provider = providerById(providerId);
     const op = sdkOp(provider, callPath);
     if (!op)
         return undefined;
+    ctx.noConsume = chosen;
+    const before = new Set(ctx.consumed);
     const info = readKwargs(ctx, call);
+    ctx.noConsume = false;
+    // A model name with several values (one per provider) resolves to one of them, maybe another provider's: then the
+    // call has no model, and the literals it read stay model references of their own
+    const owner = info.model ? modelRef(info.model)?.provider.id : undefined;
+    if (info.model && owner !== providerId && (chosen || owner)) {
+        info.model = undefined;
+        info.modelSpan = undefined;
+        for (const x of [...ctx.consumed])
+            if (!before.has(x))
+                ctx.consumed.delete(x);
+    }
     const { model, params } = info;
     return {
         provider: provider.id, kind: "sdk", lang: "py", file: ctx.file, line: lineOf(call),
@@ -460,11 +534,11 @@ function modelRefs(ctx) {
         // A model-named list inside a table of capabilities or prices (models: [...] in a compatibility matrix) is data
         const strict = (ownKind === "listed" && inDataTable(s) ? undefined : ownKind) ?? (alwaysCounts(ref.model) && !isPairKey(s, ["parenthesized_expression"]) && !inDataCollection(s) ? (inModelCollection(s, (k) => !!modelRef(k)) ? "listed" : "setting") : undefined);
         // Otherwise a model enum, list, per-provider map or model-shaped call counts if the repo uses the provider
-        const kind = strict ?? candidateKind(s, ["string"], (t) => !!modelRef(t, routed));
-        if (!kind)
-            continue;
+        //
+        const kind = strict ?? candidateKind(s, ["string"], (t) => !!modelRef(t, routed)) ?? "catalog";
         out.push({
             ...(kind === "listed" ? { listed: true, owner: collectionName(s) } : {}),
+            ...(kind === "catalog" ? { listed: true, context: "catalog", contextReason: "a model id outside a request or setting (a list, table or text)" } : {}),
             ...(kind === "setting" ? { setting: true } : {}),
             ...(strict ? {} : { weak: true }),
             provider: ref.provider.id, kind: "model-ref", lang: "py", file: ctx.file, line: lineOf(s),
@@ -482,11 +556,32 @@ function readKwargs(ctx, call) {
     let modelSpan;
     const argList = call.childForFieldName("arguments");
     for (const a of argList ? named(argList) : []) {
+        // v7: create(**params): the keys params gets earlier in the same function ({…} literal, params["k"] = …)
+        // v11: also **build(), **({…} if c else {}), and a wrapper's parameter traced back to its callers
+        if (a.type === "dictionary_splat" && named(a)[0]) {
+            for (const [k, span] of dictKeysOf(ctx, named(a)[0], call, 3))
+                if (!params.includes(k))
+                    (params.push(k), (paramSpans[k] = span));
+            continue;
+        }
         if (a.type !== "keyword_argument")
             continue;
         const k = a.childForFieldName("name")?.text;
         if (!k)
             continue;
+        // v10: create(params={…}) (StripeClient and other clients that take the request as one dict): its keys are the params
+        const val = a.childForFieldName("value");
+        if (k === "params" && val && (val.type === "dictionary" || val.type === "identifier")) {
+            const keys = val.type === "dictionary"
+                ? (() => { const d = readDict(ctx, val); return d.params.map((p) => [p, d.paramSpans?.[p] ?? { start: a.startIndex, end: a.endIndex }]); })()
+                : dictKeysBoundTo(ctx, val, call);
+            if (keys.length) {
+                for (const [pk, span] of keys)
+                    if (!params.includes(pk))
+                        (params.push(pk), (paramSpans[pk] = span));
+                continue;
+            }
+        }
         params.push(k);
         paramSpans[k] = { start: a.startIndex, end: a.endIndex };
         if (k === "model") {
@@ -557,7 +652,7 @@ function resolveString(ctx, node, markConsumed = false) {
         return undefined;
     switch (node.type) {
         case "string": {
-            if (markConsumed)
+            if (markConsumed && !ctx.noConsume)
                 ctx.consumed.add(node.startIndex);
             let out = "";
             for (const p of named(node)) {
@@ -570,13 +665,14 @@ function resolveString(ctx, node, markConsumed = false) {
         }
         case "concatenated_string":
             return named(node).map((s) => resolveString(ctx, s, markConsumed) ?? "{?}").join("");
-        case "identifier":
-            if (ctx.consts.has(node.text)) {
-                if (markConsumed)
-                    markConst(ctx, node.text);
-                return ctx.consts.get(node.text);
-            }
-            return undefined;
+        case "identifier": {
+            if (!ctx.consts.has(node.text))
+                return undefined;
+            const v = ctx.assigns.size ? valueAt(ctx, node) : ctx.consts.get(node.text);
+            if (v !== undefined && markConsumed && !ctx.noConsume)
+                markConst(ctx, node.text);
+            return v;
+        }
         case "binary_operator": {
             const op = node.childForFieldName("operator")?.text;
             if (op !== "+")
@@ -615,4 +711,101 @@ function markConst(ctx, name) {
         if (r?.type === "string")
             ctx.consumed.add(r.startIndex);
     }
+}
+/** v7, light data flow: keys a dict name gets in the enclosing function before `at`: `d = {…}`, `d["k"] = …` */
+function dictKeysBoundTo(ctx, id, at) {
+    let scope = at.parent;
+    while (scope && !["function_definition", "module"].includes(scope.type))
+        scope = scope.parent;
+    if (!scope)
+        return [];
+    const out = [];
+    for (const a of scope.descendantsOfType("assignment")) {
+        if (!a || a.startIndex >= at.startIndex)
+            continue;
+        const left = a.childForFieldName("left");
+        const right = a.childForFieldName("right");
+        if (left?.text === id.text && right?.type === "dictionary") {
+            const d = readDict(ctx, right);
+            for (const k of d.params)
+                out.push([k, d.paramSpans?.[k] ?? { start: a.startIndex, end: a.endIndex }]);
+        }
+        else if (left?.type === "subscript" && left.childForFieldName("value")?.text === id.text) {
+            const k = resolveString(ctx, left.childForFieldName("subscript"));
+            if (k)
+                out.push([k, { start: a.startIndex, end: a.endIndex }]);
+        }
+    }
+    return out;
+}
+/**
+ * v11, data flow within a module: the dict keys that can reach `n` (a `**` argument or a `params=` value). Follows a
+ * dict literal, a name bound to one (or to a builder call), a call to a module function that returns a dict, the
+ * branches of a conditional (`{…} if c else {}`), `{**a, **b}` and `dict(a, k=v)`, and a parameter back to the
+ * function's callers. Depth-limited.
+ */
+function dictKeysOf(ctx, n, at, depth) {
+    let node = n;
+    while (node?.type === "parenthesized_expression")
+        node = named(node)[0] ?? null;
+    if (!node || depth < 0)
+        return [];
+    if (node.type === "dictionary") {
+        const d = readDict(ctx, node);
+        const out = d.params.map((k) => [k, d.paramSpans?.[k] ?? { start: node.startIndex, end: node.endIndex }]);
+        for (const s of named(node).filter((c) => c.type === "dictionary_splat"))
+            out.push(...dictKeysOf(ctx, named(s)[0], at, depth - 1));
+        return out;
+    }
+    if (node.type === "conditional_expression")
+        return named(node).flatMap((c) => (c.type === "dictionary" || c.type === "parenthesized_expression" || c.type === "call" || c.type === "identifier" ? dictKeysOf(ctx, c, at, depth - 1) : []));
+    if (node.type === "identifier") {
+        const out = dictKeysBoundTo(ctx, node, at);
+        let scope = at.parent;
+        while (scope && !["function_definition", "module"].includes(scope.type))
+            scope = scope.parent;
+        // name = build(…): what build returns
+        for (const a of scope?.descendantsOfType("assignment") ?? []) {
+            if (!a || a.startIndex >= at.startIndex || a.childForFieldName("left")?.text !== node.text)
+                continue;
+            const right = a.childForFieldName("right");
+            if (right?.type === "call" && depth > 0)
+                out.push(...dictKeysOf(ctx, right, a, depth - 1));
+        }
+        // A parameter: what the function's callers in this module pass in that position
+        if (!out.length && scope?.type === "function_definition" && depth > 0) {
+            const name = scope.childForFieldName("name")?.text;
+            const ps = named(scope.childForFieldName("parameters") ?? scope).map((p) => (p.type === "identifier" ? p.text : p.childForFieldName("name")?.text ?? named(p)[0]?.text));
+            const i = ps.filter((p) => p !== "self" && p !== "cls").indexOf(node.text);
+            if (name && i >= 0) {
+                for (const c of ctx.tree.rootNode.descendantsOfType("call")) {
+                    if (!c || (c.childForFieldName("function")?.text ?? "").split(".").pop() !== name)
+                        continue;
+                    const arg = named(c.childForFieldName("arguments") ?? c).filter((x) => x.type !== "keyword_argument")[i];
+                    if (arg)
+                        out.push(...dictKeysOf(ctx, arg, c, depth - 1));
+                }
+            }
+        }
+        return out;
+    }
+    if (node.type === "call" && depth > 0) {
+        const fn = node.childForFieldName("function");
+        const fname = fn?.text.split(".").pop() ?? "";
+        // dict(base, k=v): the keyword arguments
+        if (fname === "dict")
+            return readKwargs(ctx, node).params.map((k) => [k, { start: node.startIndex, end: node.endIndex }]);
+        const out = [];
+        for (const d of ctx.tree.rootNode.descendantsOfType("function_definition")) {
+            if (!d || d.childForFieldName("name")?.text !== fname)
+                continue;
+            for (const r of d.descendantsOfType("return_statement")) {
+                const e = r && named(r)[0];
+                if (e)
+                    out.push(...dictKeysOf(ctx, e, r, depth - 1));
+            }
+        }
+        return out;
+    }
+    return [];
 }

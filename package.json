@@ -1,6 +1,6 @@
 {
   "name": "@vitasta/scanner",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Find AI models and APIs your code uses that are retired or retiring, with the date and what to move to.",
   "keywords": [
     "deprecation",
@@ -47,13 +47,15 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "dev": "tsx src/cli.ts",
-    "test": "vitest run",
+    "test": "vitest run && vitest run -c vitest.timing.config.ts",
+    "test:timing": "vitest run -c vitest.timing.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "mcp": "tsx src/mcp.ts",
     "bench:sample": "tsx bench/sample.ts",
     "bench:label": "tsx bench/label.ts",
     "bench:gate": "tsx bench/gate.ts",
-    "prepublishOnly": "npm run build && npx vitest run"
+    "prepublishOnly": "npm run build && npx vitest run && npx vitest run -c vitest.timing.config.ts",
+    "coverage-matrix": "tsx scripts/coverage-matrix.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",

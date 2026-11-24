@@ -1,0 +1,55 @@
+export type Fx = Record<string, Record<string, string>>; // shape -> lang -> file content (file name from ext)
+const E: Record<string,string> = { ts: "a.ts", js: "a.js", py: "a.py", rb: "a.rb", php: "a.php", go: "a.go", java: "A.java", cs: "A.cs" };
+export const FILES = E;
+export const FX: Fx = {
+"pi-sdk": {
+ ts: `import Stripe from "stripe";\nconst stripe = new Stripe(process.env.K!);\nexport async function f() {\n  return stripe.paymentIntents.create({\n    amount: 1000,\n    currency: "usd",\n    payment_method_types: ["card"],\n  });\n}\n`,
+ js: `const stripe = require("stripe")(process.env.K);\nasync function f() {\n  return stripe.paymentIntents.create({\n    amount: 1000,\n    currency: "usd",\n    payment_method_types: ["card"],\n  });\n}\n`,
+ py: `import stripe\nstripe.api_key = "x"\ndef f():\n    return stripe.PaymentIntent.create(\n        amount=1000,\n        currency="usd",\n        payment_method_types=["card"],\n    )\n`,
+ rb: `require "stripe"\ndef f\n  Stripe::PaymentIntent.create(\n    amount: 1000,\n    currency: "usd",\n    payment_method_types: ["card"]\n  )\nend\n`,
+ php: `<?php\n$stripe = new \\Stripe\\StripeClient('k');\nfunction f($stripe) {\n  return $stripe->paymentIntents->create([\n    'amount' => 1000,\n    'currency' => 'usd',\n    'payment_method_types' => ['card'],\n  ]);\n}\n`,
+ go: `package main\nimport (\n\t"github.com/stripe/stripe-go/v76"\n\t"github.com/stripe/stripe-go/v76/paymentintent"\n)\nfunc f() {\n\tparams := &stripe.PaymentIntentParams{\n\t\tAmount: stripe.Int64(1000),\n\t\tCurrency: stripe.String("usd"),\n\t\tPaymentMethodTypes: stripe.StringSlice([]string{"card"}),\n\t}\n\tpaymentintent.New(params)\n}\n`,
+ java: `import com.stripe.model.PaymentIntent;\nimport com.stripe.param.PaymentIntentCreateParams;\nclass A {\n  void f() throws Exception {\n    PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()\n      .setAmount(1000L)\n      .setCurrency("usd")\n      .addPaymentMethodType("card")\n      .build();\n    PaymentIntent.create(params);\n  }\n}\n`,
+ cs: `using Stripe;\nclass A {\n  void F() {\n    var options = new PaymentIntentCreateOptions {\n      Amount = 1000,\n      Currency = "usd",\n      PaymentMethodTypes = new List<string> { "card" },\n    };\n    var service = new PaymentIntentService();\n    service.Create(options);\n  }\n}\n`,
+},
+"checkout-sdk": {
+ ts: `import Stripe from "stripe";\nconst stripe = new Stripe(process.env.K!);\nexport async function f() {\n  return stripe.checkout.sessions.create({\n    mode: "payment",\n    payment_method_types: ["card"],\n    line_items: [],\n  });\n}\n`,
+ js: `const Stripe = require("stripe");\nconst stripe = new Stripe(process.env.K);\nasync function f() {\n  return stripe.checkout.sessions.create({\n    mode: "payment",\n    payment_method_types: ["card"],\n  });\n}\n`,
+ py: `import stripe\ndef f():\n    return stripe.checkout.Session.create(\n        mode="payment",\n        payment_method_types=["card"],\n        line_items=[],\n    )\n`,
+ rb: `require "stripe"\ndef f\n  Stripe::Checkout::Session.create(\n    mode: "payment",\n    payment_method_types: ["card"],\n    line_items: []\n  )\nend\n`,
+ php: `<?php\nfunction f($stripe) {\n  return $stripe->checkout->sessions->create([\n    'mode' => 'payment',\n    'payment_method_types' => ['card'],\n  ]);\n}\n`,
+ go: `package main\nimport (\n\t"github.com/stripe/stripe-go/v76"\n\t"github.com/stripe/stripe-go/v76/checkout/session"\n)\nfunc f() {\n\tparams := &stripe.CheckoutSessionParams{\n\t\tMode: stripe.String("payment"),\n\t\tPaymentMethodTypes: stripe.StringSlice([]string{"card"}),\n\t}\n\tsession.New(params)\n}\n`,
+ java: `import com.stripe.param.checkout.SessionCreateParams;\nimport com.stripe.model.checkout.Session;\nclass A {\n  void f() throws Exception {\n    SessionCreateParams params = SessionCreateParams.builder()\n      .setMode(SessionCreateParams.Mode.PAYMENT)\n      .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)\n      .build();\n    Session.create(params);\n  }\n}\n`,
+ cs: `using Stripe.Checkout;\nclass A {\n  void F() {\n    var options = new SessionCreateOptions {\n      Mode = "payment",\n      PaymentMethodTypes = new List<string> { "card" },\n    };\n    var service = new SessionService();\n    service.Create(options);\n  }\n}\n`,
+},
+"setup-sdk": {
+ ts: `import Stripe from "stripe";\nconst stripe = new Stripe(process.env.K!);\nexport async function f() {\n  return stripe.setupIntents.create({\n    customer: "cus_1",\n    payment_method_types: ["card"],\n  });\n}\n`,
+ js: `const stripe = require("stripe")(process.env.K);\nasync function f() {\n  return stripe.setupIntents.create({\n    customer: "cus_1",\n    payment_method_types: ["card"],\n  });\n}\n`,
+ py: `import stripe\ndef f():\n    return stripe.SetupIntent.create(\n        customer="cus_1",\n        payment_method_types=["card"],\n    )\n`,
+ rb: `require "stripe"\ndef f\n  Stripe::SetupIntent.create(\n    customer: "cus_1",\n    payment_method_types: ["card"]\n  )\nend\n`,
+ php: `<?php\nfunction f($stripe) {\n  return $stripe->setupIntents->create([\n    'customer' => 'cus_1',\n    'payment_method_types' => ['card'],\n  ]);\n}\n`,
+ go: `package main\nimport (\n\t"github.com/stripe/stripe-go/v76"\n\t"github.com/stripe/stripe-go/v76/setupintent"\n)\nfunc f() {\n\tparams := &stripe.SetupIntentParams{\n\t\tCustomer: stripe.String("cus_1"),\n\t\tPaymentMethodTypes: stripe.StringSlice([]string{"card"}),\n\t}\n\tsetupintent.New(params)\n}\n`,
+ java: `import com.stripe.model.SetupIntent;\nimport com.stripe.param.SetupIntentCreateParams;\nclass A {\n  void f() throws Exception {\n    SetupIntentCreateParams params = SetupIntentCreateParams.builder()\n      .setCustomer("cus_1")\n      .addPaymentMethodType("card")\n      .build();\n    SetupIntent.create(params);\n  }\n}\n`,
+ cs: `using Stripe;\nclass A {\n  void F() {\n    var options = new SetupIntentCreateOptions {\n      Customer = "cus_1",\n      PaymentMethodTypes = new List<string> { "card" },\n    };\n    new SetupIntentService().Create(options);\n  }\n}\n`,
+},
+"raw-form": {
+ ts: `export async function f() {\n  const body = new URLSearchParams({ amount: "1000", currency: "usd", "payment_method_types[]": "card" });\n  return fetch("https://api.stripe.com/v1/payment_intents", { method: "POST", headers: { Authorization: "Bearer k" }, body });\n}\n`,
+ js: `async function f() {\n  const body = new URLSearchParams({ amount: "1000", currency: "usd", "payment_method_types[]": "card" });\n  return fetch("https://api.stripe.com/v1/payment_intents", { method: "POST", body });\n}\n`,
+ py: `import requests\ndef f():\n    return requests.post(\n        "https://api.stripe.com/v1/payment_intents",\n        data={"amount": 1000, "currency": "usd", "payment_method_types[]": "card"},\n        auth=("k", ""),\n    )\n`,
+ rb: `require "net/http"\ndef f\n  Net::HTTP.post_form(URI("https://api.stripe.com/v1/payment_intents"), "amount" => 1000, "currency" => "usd", "payment_method_types[]" => "card")\nend\n`,
+ php: `<?php\nfunction f() {\n  $ch = curl_init('https://api.stripe.com/v1/payment_intents');\n  curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(['amount' => 1000, 'currency' => 'usd', 'payment_method_types' => ['card']]));\n  return curl_exec($ch);\n}\n`,
+ go: `package main\nimport ("net/http";"net/url";"strings")\nfunc f() {\n\tform := url.Values{}\n\tform.Set("amount", "1000")\n\tform.Add("payment_method_types[]", "card")\n\thttp.Post("https://api.stripe.com/v1/payment_intents", "application/x-www-form-urlencoded", strings.NewReader(form.Encode()))\n}\n`,
+ java: `import java.net.http.*;\nimport java.net.URI;\nclass A {\n  void f() throws Exception {\n    String body = "amount=1000&currency=usd&payment_method_types[]=card";\n    HttpRequest req = HttpRequest.newBuilder(URI.create("https://api.stripe.com/v1/payment_intents")).POST(HttpRequest.BodyPublishers.ofString(body)).build();\n  }\n}\n`,
+ cs: `using System.Net.Http;\nclass A {\n  async void F() {\n    var client = new HttpClient();\n    var content = new FormUrlEncodedContent(new Dictionary<string,string> { {"amount","1000"}, {"payment_method_types[]","card"} });\n    await client.PostAsync("https://api.stripe.com/v1/payment_intents", content);\n  }\n}\n`,
+},
+"var-then-pass": {
+ ts: `import Stripe from "stripe";\nconst stripe = new Stripe(process.env.K!);\nexport async function f(types: string[]) {\n  const params: Stripe.PaymentIntentCreateParams = {\n    amount: 1000,\n    currency: "usd",\n    payment_method_types: types,\n  };\n  return stripe.paymentIntents.create(params);\n}\n`,
+ js: `const stripe = require("stripe")(process.env.K);\nasync function f(types) {\n  const params = { amount: 1000, currency: "usd" };\n  params.payment_method_types = types;\n  return stripe.paymentIntents.create(params);\n}\n`,
+ py: `import stripe\ndef f(types):\n    params = {"amount": 1000, "currency": "usd"}\n    params["payment_method_types"] = types\n    return stripe.PaymentIntent.create(**params)\n`,
+ rb: `require "stripe"\ndef f(types)\n  params = { amount: 1000, currency: "usd", payment_method_types: types }\n  Stripe::PaymentIntent.create(params)\nend\n`,
+ php: `<?php\nfunction f($stripe, $types) {\n  $params = ['amount' => 1000, 'currency' => 'usd'];\n  $params['payment_method_types'] = $types;\n  return $stripe->paymentIntents->create($params);\n}\n`,
+ go: `package main\nimport (\n\t"github.com/stripe/stripe-go/v76"\n\t"github.com/stripe/stripe-go/v76/paymentintent"\n)\nfunc f(types []string) {\n\tparams := &stripe.PaymentIntentParams{Amount: stripe.Int64(1000)}\n\tparams.PaymentMethodTypes = stripe.StringSlice(types)\n\tpaymentintent.New(params)\n}\n`,
+ java: `import com.stripe.model.PaymentIntent;\nimport java.util.*;\nclass A {\n  void f(List<String> types) throws Exception {\n    Map<String, Object> params = new HashMap<>();\n    params.put("amount", 1000);\n    params.put("payment_method_types", types);\n    PaymentIntent.create(params);\n  }\n}\n`,
+ cs: `using Stripe;\nclass A {\n  void F(List<string> types) {\n    var options = new PaymentIntentCreateOptions { Amount = 1000, Currency = "usd" };\n    options.PaymentMethodTypes = types;\n    new PaymentIntentService().Create(options);\n  }\n}\n`,
+},
+};
