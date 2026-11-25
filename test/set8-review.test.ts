@@ -4,6 +4,10 @@ import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { scanRepo } from "../src/scan/index.js";
 import { findImpacts, loadFeed } from "../src/feed/match.js";
+import { haveTestFeed, TEST_FEED } from "./feed-data.js";
+
+// these read feed records: the frozen test feed, absent from the public export (see test/feed-data.ts)
+const itFeed = it.skipIf(!haveTestFeed);
 
 // Review: (24 Nov): generic fixes, each tested on hand-written code (never set 8's)
 const repo = async (files: Record<string, string>) => {
@@ -15,7 +19,7 @@ const repo = async (files: Record<string, string>) => {
   return d;
 };
 const findings = async (files: Record<string, string>) => {
-  const feed = await loadFeed(`${process.env.HOME}/vitasta/feed/data`);
+  const feed = await loadFeed(TEST_FEED);
   return findImpacts(await scanRepo(await repo(files)), feed, "2026-11-23") as any[];
 };
 const usages = async (files: Record<string, string>) => (await scanRepo(await repo(files))).usages as any[];
@@ -67,10 +71,10 @@ class Ai
 }
 `;
   const assistants = (fs: any[]) => fs.filter((f) => f.change.id.startsWith("openai-assistants-api-shutdown") && f.usage.file === "src/Ai.php");
-  it("whose calls are all chat()->create isn't an Assistants call", async () => {
+  itFeed("whose calls are all chat()->create isn't an Assistants call", async () => {
     expect(assistants(await findings({ "composer.json": '{"require":{"openai-php/client":"^0.10"}}', "src/Ai.php": php("chat()->create(['model' => 'gpt-4.1', 'messages' => []])") }))).toEqual([]);
   });
-  it("whose calls include assistants()->create is", async () => {
+  itFeed("whose calls include assistants()->create is", async () => {
     expect(assistants(await findings({ "composer.json": '{"require":{"openai-php/client":"^0.10"}}', "src/Ai.php": php("assistants()->create(['model' => 'gpt-4.1'])") })).length).toBeGreaterThan(0);
   });
 });
@@ -115,7 +119,7 @@ public class Assistants {
 });
 
 describe("3. the defining line is the finding, the request lines its alsoLines", () => {
-  it("JS constant, Python f-string base, Java @Value default", async () => {
+  itFeed("JS constant, Python f-string base, Java @Value default", async () => {
     const fs = await findings({
       "dao.js": 'const GRAPH_BASE = "https://graph.facebook.com/v12.0";\n\nfunction a() { return 1; }\nfunction b() { return 2; }\n\nasync function me(token) {\n  const res = await fetch(`${GRAPH_BASE}/me?access_token=${token}`);\n  return res.json();\n}\n',
       "client.py": 'import requests\n\nAPI_VERSION = "v14.0"\nBASE = f"https://graph.facebook.com/{API_VERSION}"\n\n\ndef helper():\n    return 1\n\n\ndef get_page(page_id, token):\n    return requests.get(f"{BASE}/{page_id}", params={"access_token": token}).json()\n',
@@ -129,7 +133,7 @@ describe("3. the defining line is the finding, the request lines its alsoLines",
 });
 
 describe("d. callers of a repo wrapper that fixes a version inside it", () => {
-  it("are the wrapper finding's other places (alsoAt), not findings of their own", async () => {
+  itFeed("are the wrapper finding's other places (alsoAt), not findings of their own", async () => {
     const fs = await findings({
       "package.json": '{"name":"x"}',
       "src/lib/graph.ts": 'export async function graphGet(path: string, token: string) {\n  const res = await fetch(`https://graph.facebook.com/v12.0/${path}?access_token=${token}`);\n  return res.json();\n}\n',

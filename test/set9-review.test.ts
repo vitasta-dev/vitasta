@@ -4,6 +4,10 @@ import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { scanRepo, isTestPath } from "../src/scan/index.js";
 import { findImpacts, loadFeed } from "../src/feed/match.js";
+import { haveTestFeed, TEST_FEED } from "./feed-data.js";
+
+// these read feed records: the frozen test feed, absent from the public export (see test/feed-data.ts)
+const itFeed = it.skipIf(!haveTestFeed);
 
 // Review: (24 Nov): generic fixes on hand-written code (never set 9's)
 const repo = async (files: Record<string, string>) => {
@@ -15,7 +19,7 @@ const repo = async (files: Record<string, string>) => {
   return d;
 };
 const usages = async (files: Record<string, string>) => (await scanRepo(await repo(files))).usages as any[];
-const findings = async (files: Record<string, string>) => findImpacts(await scanRepo(await repo(files)), await loadFeed(`${process.env.HOME}/vitasta/feed/data`), "2026-11-23") as any[];
+const findings = async (files: Record<string, string>) => findImpacts(await scanRepo(await repo(files)), await loadFeed(TEST_FEED), "2026-11-23") as any[];
 
 describe("test files by each language's own naming", () => {
   it("channel-test.go is code; channel_test.go, foo.test.ts, foo_spec.rb, FooTest.java are tests", () => {
@@ -27,7 +31,7 @@ describe("test files by each language's own naming", () => {
 });
 
 describe("a. an OpenAI-Beta header needs an Assistants op", () => {
-  it("not on vector-store requests", async () => {
+  itFeed("not on vector-store requests", async () => {
     const fs = await findings({ "src/VectorStores.php": "<?php\nnamespace App;\nclass VectorStores\n{\n    public function __construct($http) { $this->http = $http; $this->headers = ['OpenAI-Beta' => 'assistants=v2']; }\n    public function create(array $b) { return $this->http->post('/v1/vector_stores', ['json' => $b, 'headers' => $this->headers]); }\n}\n" });
     expect(fs.filter((f) => f.change.id.startsWith("openai-assistants"))).toEqual([]);
   });

@@ -4,6 +4,10 @@ import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { scanRepo } from "../src/scan/index.js";
 import { findImpacts, loadFeed } from "../src/feed/match.js";
+import { haveTestFeed, TEST_FEED } from "./feed-data.js";
+
+// these read feed records: the frozen test feed, absent from the public export (see test/feed-data.ts)
+const itFeed = it.skipIf(!haveTestFeed);
 
 // Review: (24 Nov): generic fixes on hand-written code (never set 10's)
 const repo = async (files: Record<string, string>) => {
@@ -15,7 +19,7 @@ const repo = async (files: Record<string, string>) => {
   return d;
 };
 const usages = async (files: Record<string, string>) => (await scanRepo(await repo(files))).usages as any[];
-const findings = async (files: Record<string, string>) => findImpacts(await scanRepo(await repo(files)), await loadFeed(`${process.env.HOME}/vitasta/feed/data`), "2026-11-23") as any[];
+const findings = async (files: Record<string, string>) => findImpacts(await scanRepo(await repo(files)), await loadFeed(TEST_FEED), "2026-11-23") as any[];
 
 describe("1. a URL that interpolates its ids", () => {
   it("C# $\"https://api.openai.com/v1/threads/{threadId}/messages\" is the threads operation", async () => {
@@ -46,7 +50,7 @@ describe("3. a relay's route group", () => {
 });
 
 describe("5. a base URL constant used through a namespace import", () => {
-  it("each file that builds its URL from lib.API_BASE_URL is a finding of its own", async () => {
+  itFeed("each file that builds its URL from lib.API_BASE_URL is a finding of its own", async () => {
     const fs = await findings({
       "src/lib.js": 'export const API_BASE_URL = "https://googleads.googleapis.com/v23";\n',
       "src/components/Campaigns.js": 'import * as lib from "../lib";\nexport async function load(id) {\n  return fetch(`${lib.API_BASE_URL}/customers/${id}/googleAds:search`, { method: "POST" });\n}\n',

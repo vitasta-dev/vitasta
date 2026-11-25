@@ -4,6 +4,10 @@ import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { scanRepo } from "../src/scan/index.js";
 import { findImpacts, loadFeed } from "../src/feed/match.js";
+import { haveTestFeed, TEST_FEED } from "./feed-data.js";
+
+// these read feed records: the frozen test feed, absent from the public export (see test/feed-data.ts)
+const itFeed = it.skipIf(!haveTestFeed);
 
 // 24 Nov: Ruby client hops, a Ruby library's option-group body, version-constant uses, SDK endpoint classes
 const repo = async (files: Record<string, string>) => {
@@ -123,9 +127,9 @@ describe("SDK endpoint classes", () => {
     expect(ops).toContain("AssistantsEndpoint.cs:7 GET /v1/assistants/{id}");
     expect(ops).toContain("AudioEndpoint.cs:6 POST /v1/audio/translations");
   });
-  it("a class's calls fold into its path-property finding for the same change", async () => {
+  itFeed("a class's calls fold into its path-property finding for the same change", async () => {
     const d = await repo(files);
-    const feed = await loadFeed(`${process.env.HOME}/vitasta/feed/data`);
+    const feed = await loadFeed(TEST_FEED);
     const fs = findImpacts(await scanRepo(d), feed, "2026-11-23").filter((f: any) => f.usage.file.endsWith("AssistantsEndpoint.cs"));
     const ids = [...new Set(fs.map((f: any) => f.change.id))];
     for (const id of ids) {

@@ -1,4 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { findImpacts } from "../src/feed/match.js";
@@ -6,6 +5,8 @@ import { publicModel } from "../src/feed/lookup.js";
 import { azureFamily, bedrockModel, hostOfModel, modelProvider, normalizeModel, partnerOnlyHost } from "../src/providers.js";
 import { scanRepo } from "../src/scan/index.js";
 import type { ChangeRecord } from "../src/types.js";
+import { partnerModelGaps } from "./feed-checks.js";
+import { haveTestFeed, TEST_FEED } from "./feed-data.js";
 
 const fixture = resolve(import.meta.dirname, "fixtures/partner");
 const rec = (id: string, provider: string, host: "azure" | "bedrock", models: string[]): ChangeRecord => ({
@@ -91,22 +92,8 @@ describe("partner vendors' model IDs (src/data/partner-models.json)", () => {
   });
 
   // The feed names each vendor; this file must know every Azure and Bedrock model it lists, with the same provider.
-  // The feed is a separate (private) repo: $VITASTA_FEED_DATA, else the sibling checkout. Locally it skips without
-  // one; in CI it must be there (test.yml checks it out), so a new vendor in the feed can't go unnoticed.
-  const feedDir = process.env.VITASTA_FEED_DATA ?? resolve(import.meta.dirname, "../../feed/data");
-  const haveFeed = existsSync(resolve(feedDir, "azure.json"));
-  it.skipIf(!haveFeed && !process.env.CI)("covers every Azure and Bedrock model ID in the feed", () => {
-    if (!haveFeed) throw new Error(`no feed data at ${feedDir}: CI must check out vitasta-dev/feed (FEED_READ_TOKEN) and set VITASTA_FEED_DATA`);
-    const missed: string[] = [];
-    for (const file of ["azure.json", "bedrock.json"]) {
-      for (const r of JSON.parse(readFileSync(resolve(feedDir, file), "utf8")) as ChangeRecord[]) {
-        for (const m of r.selector.models ?? []) {
-          if (m.includes("*") || m === "model-router") continue; // Azure's "model-router" is too common a word to look for
-          const p = modelProvider(normalizeModel(m));
-          if (p?.id !== r.provider) missed.push(`${file} ${r.provider} ${m}${p ? ` (found as ${p.id})` : ""}`);
-        }
-      }
-    }
-    expect(missed).toEqual([]);
+  // Checked on the frozen test feed's approved records; the live feed's new IDs show in the drift report (test/feed-data.ts)
+  it.skipIf(!haveTestFeed)("covers every Azure and Bedrock model ID in the feed", () => {
+    expect(partnerModelGaps(TEST_FEED, "approved")).toEqual([]);
   });
 });

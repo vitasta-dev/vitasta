@@ -1,8 +1,8 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { catalogLike, publicModel, queryOf } from "../src/feed/lookup.js";
-import type { ChangeRecord, Usage } from "../src/types.js";
+import { publicModel, queryOf } from "../src/feed/lookup.js";
+import { modelWordGaps } from "./feed-checks.js";
+import { haveTestFeed, TEST_FEED } from "./feed-data.js";
+import type { Usage } from "../src/types.js";
 
 describe("what the lookup may send (review F5)", () => {
   it("never a customer's own names: Azure deployments, codenames, keys", () => {
@@ -21,17 +21,9 @@ describe("what the lookup may send (review F5)", () => {
     expect(q.map((x) => x.model)).toEqual([undefined]);
   });
 
-  // The word list comes from the feed: every model ID the feed has records for must count as public
-  const feedDir = process.env.VITASTA_FEED_DATA ?? resolve(import.meta.dirname, "../../feed/data");
-  const haveFeed = existsSync(resolve(feedDir, "azure.json"));
-  it.skipIf(!haveFeed && !process.env.CI)("every model ID in the feed is made of public words (src/data/model-words.json)", () => {
-    if (!haveFeed) throw new Error(`no feed data at ${feedDir}`);
-    const missed: string[] = [];
-    for (const f of readdirSync(feedDir).filter((n) => n.endsWith(".json") && !n.startsWith("_"))) {
-      for (const r of JSON.parse(readFileSync(resolve(feedDir, f), "utf8")) as ChangeRecord[]) {
-        for (const m of r.selector.models ?? []) if (!m.includes("*") && !catalogLike(m)) missed.push(`${f} ${m}`);
-      }
-    }
-    expect(missed).toEqual([]);
+  // The word list comes from the feed: every model ID the feed has records for must count as public. Checked on the
+  // frozen test feed's approved records; the live feed's new IDs show in the drift report (test/feed-data.ts)
+  it.skipIf(!haveTestFeed)("every model ID in the feed is made of public words (src/data/model-words.json)", () => {
+    expect(modelWordGaps(TEST_FEED, "approved")).toEqual([]);
   });
 });

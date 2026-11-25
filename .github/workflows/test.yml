@@ -18,9 +18,9 @@ jobs:
           node-version: "22"
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
-      # The feed (private repo) for the partner-model coverage test, read with a read-only token. Without the
-      # secret this step is skipped and that test fails on purpose (test/partner-models.test.ts)
-      # FEED_READ_TOKEN: a read-only token for vitasta-dev/feed (contents: read). Only these two steps see it
+      # Tests read a frozen feed (test/feed-snapshot; not in the public repo, where those tests skip). The live feed
+      # (private repo, read-only FEED_READ_TOKEN, contents: read) is only for the drift report below, which can't
+      # fail the build. Without the secret both steps are skipped. Only these steps see the token
       - name: Is there a feed token?
         id: feedtoken
         env:
@@ -36,10 +36,15 @@ jobs:
           sparse-checkout: data
           persist-credentials: false
       - run: npx vitest run
-        env:
-          VITASTA_FEED_DATA: ${{ github.workspace }}/feed-checkout/data
       # wall-clock tests on their own, serially, so parallel load can't trip them
       - run: npx vitest run -c vitest.timing.config.ts
+      # New model IDs in the live feed that the scanner doesn't know yet (test/feed-drift.test.ts). A report, not a
+      # gate: the daily feed refresh must never turn CI red. Teach the scanner the IDs, then refresh the snapshot
+      - name: Feed drift report (does not fail the build)
+        if: steps.feedtoken.outputs.present == 'yes'
+        continue-on-error: true
+        run: npx vitest run test/feed-drift.test.ts
         env:
+          VITASTA_FEED_DRIFT: "1"
           VITASTA_FEED_DATA: ${{ github.workspace }}/feed-checkout/data
       - run: npm run build
